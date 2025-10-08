@@ -1,0 +1,47 @@
+[workspace]
+members = [
+    "cli",
+    "core",
+    "integration_tests",
+    "program",
+]
+
+resolver = "2"
+
+[workspace.package]
+version = "0.0.1"
+authors = ["Jito Network Maintainers <support@jito.network>"]
+repository = "https://github.com/jito-foundation/jito-bls-ncn"
+homepage = "https://jito.network/"
+license = "MIT OR Apache-2.0"
+edition = "2021"
+readme = "README.md"
+
+[workspace.dependencies]
+solana-pubkey = "3.0.0"
+solana-bn254 = "3.0.0"
+solana-signer = "3.0.0"
+solana-keypair = "3.0.0"
+solana-sha256-hasher = "3.0.0"
+solana-program = { version = "3.0.0", default-features = false, features=[] }
+solana-security-txt = "1.1.1"
+ark-ec = "0.5.0"
+ark-ff = "0.5.0"
+ark-bn254 = "0.5.0"
+ark-serialize = "0.5.0"
+hex = "0.4.3"
+anyhow = "1.0.100"
+jito-bytemuck = { package = "jito-bytemuck", git = "https://github.com/jito-foundation/restaking", branch = "master" }
+shank = "0.4.5"
+shank_idl = "0.4.5"
+borsh = { version = "1.5.7" }
+bytemuck = { version = "1.16.3", features = ["derive", "min_const_generics"] }
+solana-account-info = "3.0.0"
+solana-program-error = "3.0.0"
+solana-msg = "3.0.0"
+
+bn254 = { git = "https://github.com/BreadchainCoop/bn254.git"}
+commonware-cryptography = "0.0.56"
+commonware-utils = "0.0.56"
+commonware-codec = "0.0.56"
+bytes = "1.10.1"
