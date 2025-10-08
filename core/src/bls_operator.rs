@@ -3,7 +3,6 @@ use std::mem::size_of;
 
 use bytemuck::{Pod, Zeroable};
 use jito_bytemuck::{types::PodU64, AccountDeserialize, Discriminator};
-use shank::ShankAccount;
 use solana_account_info::AccountInfo;
 use solana_msg::msg;
 use solana_program_error::ProgramError;
@@ -12,7 +11,7 @@ use solana_pubkey::Pubkey;
 use crate::{bls::solana_bls::verify_g1_g2, discriminators::Discriminators, loaders::check_load};
 
 /// Individual operator account that stores BLS keys for a specific operator in a specific NCN
-#[derive(Debug, Clone, Copy, Zeroable, Pod, AccountDeserialize, ShankAccount)]
+#[derive(Debug, Clone, Copy, Zeroable, Pod, AccountDeserialize)]
 #[repr(C)]
 pub struct BlsOperator {
     /// The bump seed for the PDA
@@ -40,7 +39,7 @@ impl Discriminator for BlsOperator {
 }
 
 impl BlsOperator {
-    const BLS_OPERATOR_ACCOUNT_SEED: &'static [u8] = b"bls_operator";
+    const SEED: &'static [u8] = b"bls_operator";
     pub const SIZE: usize = 8 + size_of::<Self>();
 
     pub const EMPTY_OPERATOR_INDEX: u64 = u64::MAX;
@@ -79,7 +78,7 @@ impl BlsOperator {
 
     pub fn seeds(ncn: &Pubkey, operator: &Pubkey) -> Vec<Vec<u8>> {
         vec![
-            Self::BLS_OPERATOR_ACCOUNT_SEED.to_vec(),
+            Self::SEED.to_vec(),
             ncn.to_bytes().to_vec(),
             operator.to_bytes().to_vec(),
         ]

@@ -1,18 +1,13 @@
-use core::fmt;
-use std::mem::size_of;
-
 use bytemuck::{Pod, Zeroable};
 use jito_bytemuck::{types::{PodU16, PodU64}, AccountDeserialize, Discriminator};
-use shank::ShankAccount;
-use solana_account_info::AccountInfo;
 use solana_msg::msg;
 use solana_program_error::ProgramError;
 use solana_pubkey::Pubkey;
 
-use crate::{bls::solana_bls::{add_g1, sub_g1, verify_g1_g2}, bls_operator::BlsOperator, discriminators::Discriminators, loaders::check_load};
+use crate::{bls::solana_bls::{add_g1, sub_g1}, bls_operator::BlsOperator, discriminators::Discriminators};
 
 /// Individual operator account that stores BLS keys for a specific operator in a specific NCN
-#[derive(Debug, Clone, Copy, Zeroable, Pod, AccountDeserialize, ShankAccount)]
+#[derive(Debug, Clone, Copy, Zeroable, Pod, AccountDeserialize)]
 #[repr(C)]
 pub struct RollingSnapshot {
     /// The bump seed for the PDA
@@ -21,8 +16,6 @@ pub struct RollingSnapshot {
     pub ncn: Pubkey,
     /// Admin to change parameters ( Default to NCN Admin )
     pub admin: Pubkey,
-    /// TX Count
-    pub tx_count: PodU64,
     /// Aggregate G1
     pub aggregate_g1: [u8; 64],
     /// Reserved for future use
@@ -31,34 +24,6 @@ pub struct RollingSnapshot {
     pub operator_count: PodU16,
     /// Operators
     pub operators: [OperatorEntry; 256],
-}
-
-/// Individual operator account that stores BLS keys for a specific operator in a specific NCN
-#[derive(Debug, Clone, Copy, Zeroable, Pod)]
-#[repr(C)] //128 bytes
-pub struct OperatorEntry {
-    /// The bump seed for the PDA
-    pub operator: Pubkey,
-    /// The NCN this ncn operator account belongs to
-    pub last_updated_slot: PodU64,
-    /// TX Count
-    pub weight: PodU64,
-    /// Aggregate G1
-    pub g1: [u8; 64],
-    /// Reserved for future use
-    pub reserved: [u8; 16],
-}
-
-impl Default for OperatorEntry {
-    fn default() -> Self {
-        Self {
-            operator: Pubkey::default(),
-            last_updated_slot: 0u64.into(),
-            weight: 0u64.into(),
-            g1: [0; 64],
-            reserved: [0; 16],
-        }
-    }
 }
 
 impl Discriminator for RollingSnapshot {
@@ -181,5 +146,56 @@ impl RollingSnapshot {
         self.aggregate_g1 = add_g1(&self.aggregate_g1 , &updated_operator.g1).expect("Could not add G1");
 
         Ok(())
+    }
+
+    pub fn total_weight(&self, last_valid_slot: u64) -> u64 {
+        let mut total_weight: u64 = 0;
+        for i in 0..self.operator_count() {
+            let operator = self.operators[i as usize];
+
+            if operator.last_updated_slot() > last_valid_slot {
+                total_weight = total_weight.checked_add(operator.weight()).expect("Could not add weight");
+            }
+        }
+        total_weight
+    }
+}
+
+/// Individual operator account that stores BLS keys for a specific operator in a specific NCN
+#[derive(Debug, Clone, Copy, Zeroable, Pod)]
+#[repr(C)] //128 bytes
+pub struct OperatorEntry {
+    /// The bump seed for the PDA
+    pub operator: Pubkey,
+    /// The NCN this ncn operator account belongs to
+    pub last_updated_slot: PodU64,
+    /// TX Count
+    pub weight: PodU64,
+    /// Aggregate G1
+    pub g1: [u8; 64],
+    /// Reserved for future use
+    pub reserved: [u8; 16],
+}
+
+impl Default for OperatorEntry {
+    fn default() -> Self {
+        Self {
+            operator: Pubkey::default(),
+            last_updated_slot: 0u64.into(),
+            weight: 0u64.into(),
+            g1: [0; 64],
+            reserved: [0; 16],
+        }
+    }
+}
+
+impl OperatorEntry {
+
+    pub fn last_updated_slot(&self) -> u64 {
+        self.last_updated_slot.into()
+    }
+
+    pub fn weight(&self) -> u64 {
+        self.weight.into()
     }
 }

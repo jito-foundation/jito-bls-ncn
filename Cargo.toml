@@ -31,13 +31,14 @@ ark-bn254 = "0.5.0"
 ark-serialize = "0.5.0"
 hex = "0.4.3"
 anyhow = "1.0.100"
+jito-restaking-core = { package = "jito-restaking-core", git = "https://github.com/jito-foundation/restaking", branch = "master" }
+jito-vault-core = { package = "jito-vault-core", git = "https://github.com/jito-foundation/restaking", branch = "master" }
 jito-bytemuck = { package = "jito-bytemuck", git = "https://github.com/jito-foundation/restaking", branch = "master" }
-shank = "0.4.5"
-shank_idl = "0.4.5"
-borsh = { version = "1.5.7" }
 bytemuck = { version = "1.16.3", features = ["derive", "min_const_generics"] }
 solana-account-info = "3.0.0"
 solana-program-error = "3.0.0"
+solana-program-entrypoint = "3.0.0"
+jito-bls-ncn-core = { path = "./core" }
 solana-msg = "3.0.0"
 
 bn254 = { git = "https://github.com/BreadchainCoop/bn254.git"}

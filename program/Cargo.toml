@@ -28,5 +28,10 @@ localhost = []
 solana-pubkey = { workspace = true }
 solana-program = { workspace = true }
 solana-security-txt = { workspace = true }
+solana-account-info = { workspace = true }
+solana-program-error = { workspace = true }
+solana-program-entrypoint = { workspace = true }
+jito-bls-ncn-core = { workspace = true }
+solana-msg = { workspace = true }
 
 [dev-dependencies]
