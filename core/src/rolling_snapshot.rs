@@ -117,13 +117,23 @@ impl RollingSnapshot {
         Ok(())
     }
 
-    pub fn remove_operator(&mut self, operator: &BlsOperator) -> Result<(), ProgramError>{
-        if self.operator_count() == 0 {
-            msg!("No operators to remove");
+    pub fn check_operator_index(&mut self, operator: &BlsOperator, index: usize) -> Result<(), ProgramError>{
+        if index >= self.operator_count() as usize {
+            msg!("Invalid operator index");
             return Err(ProgramError::InvalidArgument);
         }
 
-        let index = self.operators.iter().position(|op| op.operator == *operator.operator()).ok_or(ProgramError::InvalidArgument)?;
+        let operator_to_check = self.operators[index].operator;
+        if operator_to_check != *operator.operator() {
+            msg!("Operator mismatch");
+            return Err(ProgramError::InvalidArgument);
+        }
+
+        Ok(())
+    }
+
+    pub fn remove_operator(&mut self, operator: &BlsOperator, index: usize) -> Result<(), ProgramError>{
+        self.check_operator_index(operator, index)?;
 
         self.operators[index] = OperatorEntry::default();
 
@@ -142,6 +152,33 @@ impl RollingSnapshot {
 
         let new_operator_count = self.operator_count().checked_sub(1).ok_or(ProgramError::ArithmeticOverflow)?;
         self.set_operator_count(new_operator_count)?;
+
+        Ok(())
+    }
+
+    pub fn update_operator_weight(&mut self, operator: &BlsOperator, index: usize, weight: u64, current_slot: u64) -> Result<(), ProgramError>{
+        self.check_operator_index(operator, index)?;
+
+        let mut updated_operator = self.operators[index].clone();
+        updated_operator.weight = PodU64::from(weight);
+        updated_operator.last_updated_slot = PodU64::from(current_slot);
+
+        self.operators[index] = updated_operator;
+
+        Ok(())
+    }
+
+    pub fn update_operator_g1(&mut self, operator: &BlsOperator, index: usize, g1: &[u8; 64]) -> Result<(), ProgramError>{
+        self.check_operator_index(operator, index)?;
+
+        let mut updated_operator = self.operators[index].clone();
+        let old_g1 = updated_operator.g1.clone();
+        updated_operator.g1 = g1.clone();
+
+        self.operators[index] = updated_operator;
+
+        self.aggregate_g1 = sub_g1(&self.aggregate_g1 , &old_g1).expect("Could not subtract G1");
+        self.aggregate_g1 = add_g1(&self.aggregate_g1 , &updated_operator.g1).expect("Could not add G1");
 
         Ok(())
     }
