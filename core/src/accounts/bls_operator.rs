@@ -1,19 +1,18 @@
 use core::fmt;
 use std::mem::size_of;
 
-use bytemuck::{Pod, Zeroable};
-use jito_bytemuck::{types::PodU64, AccountDeserialize, Discriminator};
 use solana_account_info::AccountInfo;
 use solana_msg::msg;
 use solana_program_error::ProgramError;
 use solana_pubkey::Pubkey;
 
-use crate::{bls::solana_bls::verify_g1_g2, discriminators::Discriminators, loaders::check_load};
+use crate::{bls::solana_bls::verify_g1_g2, discriminators::Discriminators, loaders::check_load, pod::{PodOption, PodU64}, utils::{DataLen, Discriminator, Initialized}};
 
 /// Individual operator account that stores BLS keys for a specific operator in a specific NCN
-#[derive(Debug, Clone, Copy, Zeroable, Pod, AccountDeserialize)]
+#[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct BlsOperator {
+    pub discriminator: PodOption<u8>,
     /// The bump seed for the PDA
     pub bump: u8,
     /// The NCN this ncn operator account belongs to
@@ -38,12 +37,22 @@ impl Discriminator for BlsOperator {
     const DISCRIMINATOR: u8 = Discriminators::BlsOperator as u8;
 }
 
+impl DataLen for BlsOperator {
+    const LEN: usize = size_of::<Self>();
+}
+
+impl Initialized for BlsOperator {
+    fn is_initialized(&self) -> bool {
+        if let Some(discriminator) = self.discriminator() {
+            *discriminator == Self::DISCRIMINATOR
+        } else {
+            false
+        }
+    }
+}
+
 impl BlsOperator {
     const SEED: &'static [u8] = b"bls_operator";
-    pub const SIZE: usize = 8 + size_of::<Self>();
-
-    pub const EMPTY_OPERATOR_INDEX: u64 = u64::MAX;
-    pub const EMPTY_SLOT_REGISTERED: u64 = u64::MAX;
 
     pub fn initialize(
         &mut self,
@@ -56,10 +65,12 @@ impl BlsOperator {
         bump: u8,
     ) -> Result<(), ProgramError> {
 
-        if current_slot == Self::EMPTY_SLOT_REGISTERED {
-            msg!("Invalid Current Slot");
+        if self.is_initialized() {
+            msg!("Already Initialized");
             return Err(ProgramError::InvalidArgument)
         }
+
+        self.discriminator = PodOption::some(Discriminators::BlsOperator as u8);
 
         self.ncn = *ncn;
         self.operator = *operator;
@@ -121,9 +132,13 @@ impl BlsOperator {
             program_id,
             account,
             &expected_pda,
-            Some(Self::DISCRIMINATOR),
+            Some(Self::DISCRIMINATOR ),
             expect_writable,
         )
+    }
+
+    pub fn discriminator(&self) -> Option<&u8> {
+        self.discriminator.as_ref()
     }
 
     pub const fn ncn(&self) -> &Pubkey {
@@ -148,10 +163,6 @@ impl BlsOperator {
 
     pub fn slot_registered(&self) -> u64 {
         self.last_updated.into()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.slot_registered() == Self::EMPTY_SLOT_REGISTERED
     }
 
     /// Verify that the G1 and G2 keys are related by verifying the pairing
@@ -193,13 +204,14 @@ impl BlsOperator {
 impl Default for BlsOperator {
     fn default() -> Self {
         BlsOperator {
+            discriminator: PodOption::none(),
             bump: 0,
             ncn: Pubkey::default(),
             operator: Pubkey::default(),
             admin: Pubkey::default(),
             g1: [0; 64],
             g2: [0; 128],
-            last_updated: Self::EMPTY_SLOT_REGISTERED.into(),
+            last_updated: PodU64::from(0),
             socket: [0; 128],
             reserved: [0; 256]
         }

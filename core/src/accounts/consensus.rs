@@ -1,36 +1,47 @@
 use core::fmt;
 use std::mem::size_of;
 
-use bytemuck::{Pod, Zeroable};
-use jito_bytemuck::{AccountDeserialize, Discriminator};
 use solana_account_info::AccountInfo;
 use solana_program_error::ProgramError;
 use solana_pubkey::Pubkey;
 
-use crate::{discriminators::Discriminators, loaders::check_load};
+use crate::{discriminators::Discriminators, loaders::check_load, pod::{PodOption, PodU64}, utils::{DataLen, Discriminator, Initialized}};
 
 /// Individual operator account that stores BLS keys for a specific operator in a specific NCN
-#[derive(Debug, Clone, Copy, Zeroable, Pod, AccountDeserialize)]
+#[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct Config {
+pub struct Consensus {
+    pub discriminator: PodOption<u8>,
     /// The bump seed for the PDA
     pub bump: u8,
     /// The NCN this ncn operator account belongs to
     pub ncn: Pubkey,
+    /// The consensus count
+    pub consensus_count: PodU64,
     /// Reserved for future use
-    pub reserved: [u8; 256], // Reserved for future use, must be zeroed
+    pub reserved: [u8; 1024], // Reserved for future use, must be zeroed
 }
 
-impl Discriminator for Config {
-    const DISCRIMINATOR: u8 = Discriminators::Config as u8;
+impl Discriminator for Consensus {
+    const DISCRIMINATOR: u8 = Discriminators::Consensus as u8;
 }
 
-impl Config {
-    const SEED: &'static [u8] = b"config";
-    pub const SIZE: usize = 8 + size_of::<Self>();
+impl DataLen for Consensus {
+    const LEN: usize = size_of::<Self>();
+}
 
-    pub const EMPTY_OPERATOR_INDEX: u64 = u64::MAX;
-    pub const EMPTY_SLOT_REGISTERED: u64 = u64::MAX;
+impl Initialized for Consensus {
+    fn is_initialized(&self) -> bool {
+        if let Some(discriminator) = self.discriminator() {
+            *discriminator == Self::DISCRIMINATOR
+        } else {
+            false
+        }
+    }
+}
+
+impl Consensus {
+    const SEED: &'static [u8] = b"consensus";
 
     pub fn initialize(
         &mut self,
@@ -38,9 +49,14 @@ impl Config {
         bump: u8,
     ) -> Result<(), ProgramError> {
 
+        if self.is_initialized() {
+            return Err(ProgramError::AccountAlreadyInitialized);
+        }
+
         self.ncn = *ncn;
         self.bump = bump;
-        self.reserved = [0; 256];
+        self.consensus_count = PodU64::from(0_u64);
+        self.reserved = [0; 1024];
 
         Ok(())
     }
@@ -91,24 +107,30 @@ impl Config {
         )
     }
 
+    pub fn discriminator(&self) -> Option<&u8> {
+        self.discriminator.as_ref()
+    }
+
     pub const fn ncn(&self) -> &Pubkey {
         &self.ncn
     }
 }
 
-impl Default for Config {
+impl Default for Consensus {
     fn default() -> Self {
-        Config {
+        Consensus {
+            discriminator: PodOption::none(),
             bump: 0,
             ncn: Pubkey::default(),
-            reserved: [0; 256]
+            consensus_count: PodU64::from(0_u64),
+            reserved: [0; 1024]
         }
     }
 }
 
-impl fmt::Display for Config {
+impl fmt::Display for Consensus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "\n\n----------- BLS NCN Config -------------")?;
+        writeln!(f, "\n\n----------- BLS NCN Consensus -------------")?;
         writeln!(f, "  NCN:                          {}", self.ncn)?;
 
         Ok(())

@@ -7,6 +7,8 @@ use solana_program_entrypoint::{ProgramResult, entrypoint};
 
 use jito_bls_ncn_core::instructions::JitoBlsNCNInstructions;
 
+pub mod realloc_rolling_snapshot;
+
 #[cfg(not(feature = "no-entrypoint"))]
 use solana_security_txt::security_txt;
 
@@ -36,10 +38,11 @@ pub fn process_instruction(
         return Err(ProgramError::IncorrectProgramId);
     }
 
-    // let instruction = JitoBlsNCNInstructions::try_from_slice(instruction_data)?;
-    // match instruction {
-
-    // }
+    let instruction = JitoBlsNCNInstructions::try_from(instruction_data[0])?;
+    match instruction {
+        JitoBlsNCNInstructions::ReallocRollingSnapshot => todo!(),
+        _ => todo!(),
+    }
 
     Ok(())
 }
