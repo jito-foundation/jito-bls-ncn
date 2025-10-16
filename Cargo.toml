@@ -23,7 +23,7 @@ solana-bn254 = "3.0.0"
 solana-signer = "3.0.0"
 solana-keypair = "3.0.0"
 solana-sha256-hasher = "3.0.0"
-solana-program = { version = "3.0.0", default-features = false, features=[] }
+solana-program = {version = "3.0.0", default-features = false}
 solana-security-txt = "1.1.1"
 ark-ec = "0.5.0"
 ark-ff = "0.5.0"
@@ -44,8 +44,8 @@ solana-program-entrypoint = "3.0.0"
 jito-bls-ncn-core = { path = "./core" }
 solana-msg = "3.0.0"
 
-bn254 = { git = "https://github.com/BreadchainCoop/bn254.git"}
 commonware-cryptography = "0.0.56"
 commonware-utils = "0.0.56"
 commonware-codec = "0.0.56"
 bytes = "1.10.1"
+bn254 = { git = "https://github.com/BreadchainCoop/bn254.git"}

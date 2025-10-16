@@ -23,7 +23,6 @@ mainnet-beta = []
 testnet = []
 devnet = []
 localhost = []
-bpf-entrypoint = []
 
 [dependencies]
 solana-pubkey = { workspace = true }

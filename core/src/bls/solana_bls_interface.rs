@@ -13,7 +13,7 @@ pub type SolanaBN254Signature = SolanaBN254G1;
 // https://github.com/BreadchainCoop/bn254/blob/main/src/lib.rs
 // look at Fq::from string
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct SolanaBN254G1 {
     pub point: G1Projective,
     pub raw: [u8; 64],
@@ -64,7 +64,7 @@ impl SolanaBN254G1 {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct SolanaBN254G2{
     pub point: G2Projective,
     pub raw: [u8; 128],

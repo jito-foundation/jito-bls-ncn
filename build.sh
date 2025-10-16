@@ -1,5 +1,5 @@
 cargo build
 
 cd program
-cargo build-sbf --features bpf-entrypoint
+cargo build-sbf
 cd ..
