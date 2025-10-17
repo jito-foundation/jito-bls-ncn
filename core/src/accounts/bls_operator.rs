@@ -6,7 +6,7 @@ use solana_msg::msg;
 use solana_program_error::ProgramError;
 use solana_pubkey::Pubkey;
 
-use crate::{bls::solana_bls::verify_g1_g2, discriminators::Discriminators, loaders::check_load, pod::{PodOption, PodU64}, utils::{DataLen, Discriminator, Initialized}};
+use crate::{bls::solana_bls::verify_g1_g2, discriminators::Discriminators, pod::{PodOption, PodU64}, utils::{check_account, DataLen, Discriminator, Initialized}};
 
 /// Individual operator account that stores BLS keys for a specific operator in a specific NCN
 #[derive(Debug, Clone, Copy)]
@@ -15,8 +15,6 @@ pub struct BlsOperator {
     pub discriminator: PodOption<u8>,
     /// The bump seed for the PDA
     pub bump: u8,
-    /// The NCN this ncn operator account belongs to
-    pub ncn: Pubkey,
     /// The operator pubkey
     pub operator: Pubkey,
     /// Admin to change parameters ( Default to Operator Admin )
@@ -52,7 +50,7 @@ impl Initialized for BlsOperator {
 }
 
 impl BlsOperator {
-    const SEED: &'static [u8] = b"bls_operator";
+    pub const SEED: &'static [u8] = b"bls_operator";
 
     pub fn initialize(
         &mut self,
@@ -72,7 +70,6 @@ impl BlsOperator {
 
         self.discriminator = PodOption::some(Discriminators::BlsOperator as u8);
 
-        self.ncn = *ncn;
         self.operator = *operator;
         self.socket = *socket;
         self.bump = bump;
@@ -87,20 +84,18 @@ impl BlsOperator {
         Ok(())
     }
 
-    pub fn seeds(ncn: &Pubkey, operator: &Pubkey) -> Vec<Vec<u8>> {
+    pub fn seeds( operator: &Pubkey) -> Vec<Vec<u8>> {
         vec![
             Self::SEED.to_vec(),
-            ncn.to_bytes().to_vec(),
             operator.to_bytes().to_vec(),
         ]
     }
 
     pub fn offchain_find_program_address(
         program_id: &Pubkey,
-        ncn: &Pubkey,
         operator: &Pubkey,
     ) -> (Pubkey, u8, Vec<Vec<u8>>) {
-        let seeds = Self::seeds(ncn, operator);
+        let seeds = Self::seeds(operator);
         let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
         let (address, bump) = Pubkey::find_program_address(&seeds_iter, program_id);
         (address, bump, seeds)
@@ -108,11 +103,10 @@ impl BlsOperator {
 
     pub fn create_program_address(
         program_id: &Pubkey,
-        ncn: &Pubkey,
         operator: &Pubkey,
         bump: u8,
     ) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError> {
-        let mut seeds = Self::seeds(ncn, operator);
+        let mut seeds = Self::seeds(operator);
         seeds.push(vec![bump]);
         let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
         let address = Pubkey::create_program_address(&seeds_iter, program_id)?;
@@ -122,13 +116,12 @@ impl BlsOperator {
     pub fn load(
         program_id: &Pubkey,
         account: &AccountInfo,
-        ncn: &Pubkey,
         operator: &Pubkey,
         expect_writable: bool,
         bump: u8,
     ) -> Result<(), ProgramError> {
-        let expected_pda = Self::create_program_address(program_id, ncn, operator, bump)?.0;
-        check_load(
+        let expected_pda = Self::create_program_address(program_id, operator, bump)?.0;
+        check_account(
             program_id,
             account,
             &expected_pda,
@@ -139,10 +132,6 @@ impl BlsOperator {
 
     pub fn discriminator(&self) -> Option<&u8> {
         self.discriminator.as_ref()
-    }
-
-    pub const fn ncn(&self) -> &Pubkey {
-        &self.ncn
     }
 
     pub const fn operator(&self) -> &Pubkey {
@@ -206,7 +195,6 @@ impl Default for BlsOperator {
         BlsOperator {
             discriminator: PodOption::none(),
             bump: 0,
-            ncn: Pubkey::default(),
             operator: Pubkey::default(),
             admin: Pubkey::default(),
             g1: [0; 64],
@@ -221,7 +209,6 @@ impl Default for BlsOperator {
 impl fmt::Display for BlsOperator {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "\n\n----------- NCN Operator Account -------------")?;
-        writeln!(f, "  NCN:                          {}", self.ncn)?;
         writeln!(
             f,
             "  Operator:                     {}",

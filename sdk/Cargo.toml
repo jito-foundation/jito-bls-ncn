@@ -1,0 +1,20 @@
+[package]
+name = "jito-bls-ncn-sdk"
+description = "Jito's BLS NCN SDK"
+version = { workspace = true }
+authors = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+edition = { workspace = true }
+readme = { workspace = true }
+
+[features]
+default = []
+
+[dependencies]
+solana-pubkey = { workspace = true }
+solana-signer = { workspace = true }
+solana-keypair = { workspace = true }
+jito-bls-ncn-core = { path = "../core", features = ["commonware"] }
+jito-bls-ncn-program = { path = "../program", features = ["no-entrypoint"] }

@@ -3,7 +3,7 @@ use solana_msg::msg;
 use solana_program_error::ProgramError;
 use solana_pubkey::Pubkey;
 
-use crate::{accounts::bls_operator::BlsOperator, bls::solana_bls::{add_g1, sub_g1}, discriminators::Discriminators, loaders::check_load, pod::{PodOption, PodU16, PodU64}, utils::{DataLen, Discriminator, Initialized}};
+use crate::{accounts::bls_operator::BlsOperator, bls::solana_bls::{add_g1, sub_g1}, discriminators::Discriminators, pod::{PodOption, PodU16, PodU64}, utils::{check_account, DataLen, Discriminator, Initialized}};
 
 /// Individual operator account that stores BLS keys for a specific operator in a specific NCN
 #[derive(Debug, Clone, Copy)]
@@ -47,7 +47,7 @@ impl Initialized for RollingSnapshot {
 
 impl RollingSnapshot {
     pub const MAX_OPERATORS: u16 = 256;
-    const SEED: &'static [u8] = b"rolling_snapshot";
+    pub const SEED: &'static [u8] = b"rolling_snapshot";
 
     pub fn initialize(
         &mut self,
@@ -99,7 +99,7 @@ impl RollingSnapshot {
         bump: u8,
     ) -> Result<(), ProgramError> {
         let expected_pda = Self::create_program_address(program_id, ncn, bump)?.0;
-        check_load(
+        check_account(
             program_id,
             account,
             &expected_pda,

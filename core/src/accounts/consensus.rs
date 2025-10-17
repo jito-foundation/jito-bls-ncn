@@ -5,7 +5,7 @@ use solana_account_info::AccountInfo;
 use solana_program_error::ProgramError;
 use solana_pubkey::Pubkey;
 
-use crate::{discriminators::Discriminators, loaders::check_load, pod::{PodOption, PodU64}, utils::{DataLen, Discriminator, Initialized}};
+use crate::{discriminators::Discriminators, pod::{PodOption, PodU64}, utils::{check_account, DataLen, Discriminator, Initialized}};
 
 /// Individual operator account that stores BLS keys for a specific operator in a specific NCN
 #[derive(Debug, Clone, Copy)]
@@ -41,7 +41,7 @@ impl Initialized for Consensus {
 }
 
 impl Consensus {
-    const SEED: &'static [u8] = b"consensus";
+    pub const SEED: &'static [u8] = b"consensus";
 
     pub fn initialize(
         &mut self,
@@ -98,7 +98,7 @@ impl Consensus {
         bump: u8,
     ) -> Result<(), ProgramError> {
         let expected_pda = Self::create_program_address(program_id, ncn, bump)?.0;
-        check_load(
+        check_account(
             program_id,
             account,
             &expected_pda,

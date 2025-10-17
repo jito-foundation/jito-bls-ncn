@@ -123,7 +123,7 @@ pub fn load_system_account(info: &AccountInfo, is_writable: bool) -> Result<(), 
     Ok(())
 }
 
-pub fn check_load(
+pub fn check_account(
     program_id: &Pubkey,
     account: &AccountInfo,
     expected_pda: &Pubkey,
@@ -146,7 +146,9 @@ pub fn check_load(
             return Err(ProgramError::InvalidAccountData);
         }
 
-        if account.data.borrow()[0].ne(&discriminator) {
+        let account_discriminator_option: u8 = account.data.borrow()[0];
+        let account_discriminator: u8 = account.data.borrow()[1];
+        if account_discriminator_option == 0 || account_discriminator != discriminator {
             msg!("Account discriminator is invalid");
             return Err(ProgramError::InvalidAccountData);
         }

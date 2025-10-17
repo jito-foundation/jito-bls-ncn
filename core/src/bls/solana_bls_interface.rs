@@ -2,18 +2,13 @@ use ark_bn254::{Fq, Fq2, Fr, G1Projective, G2Affine, G2Projective};
 use ark_ec::{CurveGroup, AffineRepr};
 use ark_ff::{BigInteger, Field, PrimeField, One};
 use solana_keypair::Keypair;
+use serde_json;
 use solana_bn254::{compression::prelude::{alt_bn128_g1_compress, alt_bn128_g1_decompress, alt_bn128_g2_compress, alt_bn128_g2_decompress}, prelude::*};
 
 use crate::bls::solana_bls::{offchain_g1_from_private_key, offchain_g2_from_private_key, offchain_parse_g2_point, solana_sign, aggregate_signatures};
 
-/// Complete BN254 implementation for Solana
 pub type SolanaBN254Signature = SolanaBN254G1;
-
-//TODO: Put into an interface file and then implement the Commonware Singer interface
-// https://github.com/BreadchainCoop/bn254/blob/main/src/lib.rs
-// look at Fq::from string
-
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 pub struct SolanaBN254G1 {
     pub point: G1Projective,
     pub raw: [u8; 64],
@@ -64,7 +59,7 @@ impl SolanaBN254G1 {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 pub struct SolanaBN254G2{
     pub point: G2Projective,
     pub raw: [u8; 128],
@@ -139,6 +134,58 @@ impl SolanaBN254PublicKey {
     pub fn new(g1: SolanaBN254G1, g2: SolanaBN254G2) -> Self {
         Self { g1, g2 }
     }
+
+    /// Serialize public key to JSON string
+    pub fn to_json(&self) -> Result<String, String> {
+        let json_obj = serde_json::json!({
+            "g1": {
+                "raw": hex::encode(self.g1.raw),
+                "compressed": hex::encode(self.g1.compressed)
+            },
+            "g2": {
+                "raw": hex::encode(self.g2.raw),
+                "compressed": hex::encode(self.g2.compressed)
+            }
+        });
+
+        serde_json::to_string(&json_obj)
+            .map_err(|e| format!("Failed to serialize to JSON: {:?}", e))
+    }
+
+    /// Serialize public key to pretty-printed JSON string
+    pub fn to_json_pretty(&self) -> Result<String, String> {
+        let json_obj = serde_json::json!({
+            "g1": {
+                "raw": hex::encode(self.g1.raw),
+                "compressed": hex::encode(self.g1.compressed)
+            },
+            "g2": {
+                "raw": hex::encode(self.g2.raw),
+                "compressed": hex::encode(self.g2.compressed)
+            }
+        });
+
+        serde_json::to_string_pretty(&json_obj)
+            .map_err(|e| format!("Failed to serialize to JSON: {:?}", e))
+    }
+
+    /// Deserialize public key from JSON string
+    pub fn from_json(json_str: &str) -> Result<Self, String> {
+        let json_obj: serde_json::Value = serde_json::from_str(json_str)
+            .map_err(|e| format!("Failed to parse JSON: {:?}", e))?;
+
+        let g1_raw_hex = json_obj["g1"]["raw"]
+            .as_str()
+            .ok_or("Missing or invalid g1.raw field")?;
+        let g1 = SolanaBN254G1::from_string(g1_raw_hex)?;
+
+        let g2_raw_hex = json_obj["g2"]["raw"]
+            .as_str()
+            .ok_or("Missing or invalid g2.raw field")?;
+        let g2 = SolanaBN254G2::from_string(g2_raw_hex)?;
+
+        Ok(Self::new(g1, g2))
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -183,9 +230,73 @@ impl SolanaBN254Keypair {
     pub fn to_string(&self) -> String {
         hex::encode(self.private_key)
     }
-}
 
-//TODO to/from JSON - Keypair/Pubkey
+    /// Serialize keypair to JSON string
+    pub fn to_json(&self) -> Result<String, String> {
+        let json_obj = serde_json::json!({
+            "private_key": hex::encode(self.private_key),
+            "public_key": {
+                "g1": {
+                    "raw": hex::encode(self.public_key.g1.raw),
+                    "compressed": hex::encode(self.public_key.g1.compressed)
+                },
+                "g2": {
+                    "raw": hex::encode(self.public_key.g2.raw),
+                    "compressed": hex::encode(self.public_key.g2.compressed)
+                }
+            }
+        });
+
+        serde_json::to_string(&json_obj)
+            .map_err(|e| format!("Failed to serialize to JSON: {:?}", e))
+    }
+
+    /// Serialize keypair to pretty-printed JSON string
+    pub fn to_json_pretty(&self) -> Result<String, String> {
+        let json_obj = serde_json::json!({
+            "private_key": hex::encode(self.private_key),
+            "public_key": {
+                "g1": {
+                    "raw": hex::encode(self.public_key.g1.raw),
+                    "compressed": hex::encode(self.public_key.g1.compressed)
+                },
+                "g2": {
+                    "raw": hex::encode(self.public_key.g2.raw),
+                    "compressed": hex::encode(self.public_key.g2.compressed)
+                }
+            }
+        });
+
+        serde_json::to_string_pretty(&json_obj)
+            .map_err(|e| format!("Failed to serialize to JSON: {:?}", e))
+    }
+
+    /// Deserialize keypair from JSON string
+    pub fn from_json(json_str: &str) -> Result<Self, String> {
+        let json_obj: serde_json::Value = serde_json::from_str(json_str)
+            .map_err(|e| format!("Failed to parse JSON: {:?}", e))?;
+
+        let private_key_hex = json_obj["private_key"]
+            .as_str()
+            .ok_or("Missing or invalid private_key field")?;
+
+        Self::from_string(private_key_hex)
+    }
+
+    /// Write keypair to JSON file
+    pub fn to_json_file(&self, path: &str) -> Result<(), String> {
+        let json_str = self.to_json_pretty()?;
+        std::fs::write(path, json_str)
+            .map_err(|e| format!("Failed to write to file: {:?}", e))
+    }
+
+    /// Read keypair from JSON file
+    pub fn from_json_file(path: &str) -> Result<Self, String> {
+        let json_str = std::fs::read_to_string(path)
+            .map_err(|e| format!("Failed to read file: {:?}", e))?;
+        Self::from_json(&json_str)
+    }
+}
 
 #[cfg(test)]
 mod tests {

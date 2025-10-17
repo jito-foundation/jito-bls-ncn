@@ -4,6 +4,7 @@ members = [
     "core",
     "integration_tests",
     "program",
+    "sdk"
 ]
 
 resolver = "2"
@@ -41,9 +42,8 @@ solana-system-interface = "2.0.0"
 solana-account-info = "3.0.0"
 solana-program-error = "3.0.0"
 solana-program-entrypoint = "3.0.0"
-jito-bls-ncn-core = { path = "./core" }
 solana-msg = "3.0.0"
-
+serde_json = "1.0.145"
 commonware-cryptography = "0.0.56"
 commonware-utils = "0.0.56"
 commonware-codec = "0.0.56"

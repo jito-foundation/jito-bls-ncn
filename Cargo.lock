@@ -1311,6 +1311,7 @@ dependencies = [
  "hex",
  "jito-restaking-core",
  "jito-vault-core",
+ "serde_json",
  "solana-account-info 3.0.0",
  "solana-bn254",
  "solana-keypair",
@@ -1344,6 +1345,17 @@ dependencies = [
  "solana-program-error 3.0.0",
  "solana-pubkey 3.0.0",
  "solana-security-txt",
+]
+
+[[package]]
+name = "jito-bls-ncn-sdk"
+version = "0.0.1"
+dependencies = [
+ "jito-bls-ncn-core",
+ "jito-bls-ncn-program",
+ "solana-keypair",
+ "solana-pubkey 3.0.0",
+ "solana-signer 3.0.0",
 ]
 
 [[package]]

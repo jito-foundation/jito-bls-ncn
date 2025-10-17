@@ -13,6 +13,7 @@ readme = { workspace = true }
 crate-type = ["cdylib", "lib"]
 name = "jito_bls_ncn_program"
 
+# Do we need these?
 [features]
 no-entrypoint = []
 no-idl = []
@@ -31,7 +32,7 @@ solana-security-txt = { workspace = true }
 solana-account-info = { workspace = true }
 solana-program-error = { workspace = true }
 solana-program-entrypoint = { workspace = true }
-jito-bls-ncn-core = { workspace = true }
+jito-bls-ncn-core = { path = "../core" }
 solana-msg = { workspace = true }
 
 [dev-dependencies]
