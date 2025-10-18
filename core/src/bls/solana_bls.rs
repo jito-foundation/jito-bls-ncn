@@ -199,7 +199,7 @@ pub fn solana_hash(data: &[u8]) -> [u8; 32] {
 /// - Deterministic: Same inputs always produce same output
 /// - Domain separation prevents cross-protocol replay attacks
 pub fn solana_hash_to_curve(message: &[u8], domain: Option<&[u8]>) -> Result<[u8; 64], String> {
-    let hasher_input = match domain {
+    let hasher_input = match domain { // would remove domain optionality if possible
         Some(domain) => union_unique(message, domain),
         None => message.to_vec(),
     };
@@ -295,6 +295,7 @@ pub fn union_unique(message: &[u8], domain: &[u8]) -> Vec<u8> {
 ///
 /// # Reference
 /// https://github.com/Layr-Labs/eigenlayer-middleware/blob/1feb6ae7e12f33ce8eefb361edb69ee26c118b5d/src/libraries/BN254.sol#L292
+/// would include there's an open vunerablity with this  https://github.com/Layr-Labs/eigenlayer-middleware/issues/172
 fn solana_map_to_curve(bytes: &[u8; 32]) -> Result<[u8; 64], String> {
     let one = Fq::one();
     let three = Fq::from(3u64);
@@ -759,6 +760,7 @@ pub fn verify_g1_g2(
 /// # Security
 /// Binding all components together makes it computationally infeasible to
 /// find a different operator set that produces the same verification result.
+/// dont you need the mod fr here? https://github.com/Layr-Labs/eigenlayer-middleware/blob/6b4255aa7423b492069c48f6520ebabb2ce58f3c/src/BLSSignatureChecker.sol#L214
 fn compute_alpha(
     message_hash: &[u8; 64],
     signature: &[u8; 64],
@@ -1065,7 +1067,7 @@ pub fn offchain_create_operators_bitmap(
 /// # Important
 /// Arrays must have same length and order must match:
 /// signatures[i] corresponds to pubkeys_g2[i] and signing_indices[i]
-pub fn offchain_prepare_vote_data(
+pub fn offchain_prepare_vote_data( // I would have this message just accept the signers and return the agg g2 and bitmap but maybe i dont understand how you're doing this onchain
     signatures: &[[u8; 64]],      // Uncompressed G1 signatures
     pubkeys_g2: &[[u8; 128]],     // Uncompressed G2 public keys
     signing_indices: &[usize],     // Which operators signed
@@ -1076,7 +1078,7 @@ pub fn offchain_prepare_vote_data(
     // Aggregate and compress public keys
     let aggregated_g2 = offchain_aggregate_g2_pubkeys(pubkeys_g2)?;
     // Create bitmap
-    let bitmap = offchain_create_operators_bitmap(total_operators, signing_indices);
+    let bitmap = offchain_create_operators_bitmap(total_operators, signing_indices); 
     Ok((aggregated_signature, aggregated_g2, bitmap))
 }
 
