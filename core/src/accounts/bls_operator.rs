@@ -6,7 +6,12 @@ use solana_msg::msg;
 use solana_program_error::ProgramError;
 use solana_pubkey::Pubkey;
 
-use crate::{bls::solana_bls::verify_g1_g2, discriminators::Discriminators, pod::{PodOption, PodU64}, utils::{check_account, DataLen, Discriminator, Initialized}};
+use crate::{
+    bls::solana_bls::verify_g1_g2,
+    discriminators::Discriminators,
+    pod::{PodOption, PodU64},
+    utils::{check_account, DataLen, Discriminator, Initialized},
+};
 
 /// Individual operator account that stores BLS keys for a specific operator in a specific NCN
 #[derive(Debug, Clone, Copy)]
@@ -62,10 +67,9 @@ impl BlsOperator {
         current_slot: u64,
         bump: u8,
     ) -> Result<(), ProgramError> {
-
         if self.is_initialized() {
             msg!("Already Initialized");
-            return Err(ProgramError::InvalidArgument)
+            return Err(ProgramError::InvalidArgument);
         }
 
         self.discriminator = PodOption::some(Discriminators::BlsOperator as u8);
@@ -75,20 +79,13 @@ impl BlsOperator {
         self.bump = bump;
         self.reserved = [0; 256];
 
-        self.update_keys(
-            g1,
-            g2,
-            current_slot
-        )?;
+        self.update_keys(g1, g2, current_slot)?;
 
         Ok(())
     }
 
-    pub fn seeds( operator: &Pubkey) -> Vec<Vec<u8>> {
-        vec![
-            Self::SEED.to_vec(),
-            operator.to_bytes().to_vec(),
-        ]
+    pub fn seeds(operator: &Pubkey) -> Vec<Vec<u8>> {
+        vec![Self::SEED.to_vec(), operator.to_bytes().to_vec()]
     }
 
     pub fn offchain_find_program_address(
@@ -125,7 +122,7 @@ impl BlsOperator {
             program_id,
             account,
             &expected_pda,
-            Some(Self::DISCRIMINATOR ),
+            Some(Self::DISCRIMINATOR),
             expect_writable,
         )
     }
@@ -157,16 +154,18 @@ impl BlsOperator {
     /// Verify that the G1 and G2 keys are related by verifying the pairing
     pub fn verify_keypair(&self) -> Result<(), ProgramError> {
         match verify_g1_g2(self.g1(), self.g2()) {
-            Ok(verified) => if verified {
-                Ok(())
-            } else {
-                msg!("Not verified");
-                Err(ProgramError::InvalidArgument)
-            },
+            Ok(verified) => {
+                if verified {
+                    Ok(())
+                } else {
+                    msg!("Not verified");
+                    Err(ProgramError::InvalidArgument)
+                }
+            }
             Err(error) => {
                 msg!("Error verifying g1/g2 {}", error);
-                Err(ProgramError::InvalidArgument)}
-
+                Err(ProgramError::InvalidArgument)
+            }
         }
     }
 
@@ -177,7 +176,6 @@ impl BlsOperator {
         new_g2: &[u8; 128],
         current_slot: u64,
     ) -> Result<(), ProgramError> {
-
         // Update the keys
         self.g1 = *new_g1;
         self.g2 = *new_g2;
@@ -201,7 +199,7 @@ impl Default for BlsOperator {
             g2: [0; 128],
             last_updated: PodU64::from(0),
             socket: [0; 128],
-            reserved: [0; 256]
+            reserved: [0; 256],
         }
     }
 }
@@ -209,11 +207,7 @@ impl Default for BlsOperator {
 impl fmt::Display for BlsOperator {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "\n\n----------- NCN Operator Account -------------")?;
-        writeln!(
-            f,
-            "  Operator:                     {}",
-            self.operator
-        )?;
+        writeln!(f, "  Operator:                     {}", self.operator)?;
         writeln!(f, "  G1 Pubkey:                    {:?}", self.g1)?;
         writeln!(f, "  G2 Pubkey:                    {:?}", self.g2)?;
         writeln!(

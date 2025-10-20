@@ -1,4 +1,7 @@
-use crate::{errors::BlsNcnProgramError, utils::{DataLen, Discriminator}};
+use crate::{
+    errors::BlsNcnProgramError,
+    utils::{DataLen, Discriminator},
+};
 
 #[repr(u8)]
 pub enum JitoBlsNCNInstructions {
@@ -11,7 +14,9 @@ impl TryFrom<u8> for JitoBlsNCNInstructions {
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
-            ReallocRollingSnapshotIxData::DISCRIMINATOR => Ok(JitoBlsNCNInstructions::ReallocRollingSnapshot),
+            ReallocRollingSnapshotIxData::DISCRIMINATOR => {
+                Ok(JitoBlsNCNInstructions::ReallocRollingSnapshot)
+            }
             VoteIxData::DISCRIMINATOR => Ok(JitoBlsNCNInstructions::Vote),
             _ => Err(BlsNcnProgramError::InvalidInstruction),
         }
@@ -40,9 +45,14 @@ impl Discriminator for ReallocRollingSnapshotIxData {
 }
 
 impl ReallocRollingSnapshotIxData {
-
     pub fn new() -> Self {
-        Self { discriminator: Self::DISCRIMINATOR }
+        Self {
+            discriminator: Self::DISCRIMINATOR,
+        }
+    }
+
+    pub unsafe fn to_bytes(&self) -> &[u8] {
+        unsafe { crate::utils::to_bytes::<Self>(&self) }
     }
 }
 
@@ -68,8 +78,13 @@ impl Discriminator for VoteIxData {
 }
 
 impl VoteIxData {
-
     pub fn new() -> Self {
-        Self { discriminator: Self::DISCRIMINATOR }
+        Self {
+            discriminator: Self::DISCRIMINATOR,
+        }
+    }
+
+    pub unsafe fn to_bytes(&self) -> &[u8] {
+        unsafe { crate::utils::to_bytes::<Self>(&self) }
     }
 }

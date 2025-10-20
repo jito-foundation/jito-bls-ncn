@@ -5,7 +5,11 @@ use solana_account_info::AccountInfo;
 use solana_program_error::ProgramError;
 use solana_pubkey::Pubkey;
 
-use crate::{discriminators::Discriminators, pod::{PodOption, PodU64}, utils::{check_account, DataLen, Discriminator, Initialized}};
+use crate::{
+    discriminators::Discriminators,
+    pod::{PodOption, PodU64},
+    utils::{check_account, DataLen, Discriminator, Initialized},
+};
 
 /// Individual operator account that stores BLS keys for a specific operator in a specific NCN
 #[derive(Debug, Clone, Copy)]
@@ -43,12 +47,7 @@ impl Initialized for Consensus {
 impl Consensus {
     pub const SEED: &'static [u8] = b"consensus";
 
-    pub fn initialize(
-        &mut self,
-        ncn: &Pubkey,
-        bump: u8,
-    ) -> Result<(), ProgramError> {
-
+    pub fn initialize(&mut self, ncn: &Pubkey, bump: u8) -> Result<(), ProgramError> {
         if self.is_initialized() {
             return Err(ProgramError::AccountAlreadyInitialized);
         }
@@ -62,10 +61,7 @@ impl Consensus {
     }
 
     pub fn seeds(ncn: &Pubkey) -> Vec<Vec<u8>> {
-        vec![
-            Self::SEED.to_vec(),
-            ncn.to_bytes().to_vec(),
-        ]
+        vec![Self::SEED.to_vec(), ncn.to_bytes().to_vec()]
     }
 
     pub fn offchain_find_program_address(
@@ -123,7 +119,7 @@ impl Default for Consensus {
             bump: 0,
             ncn: Pubkey::default(),
             consensus_count: PodU64::from(0_u64),
-            reserved: [0; 1024]
+            reserved: [0; 1024],
         }
     }
 }

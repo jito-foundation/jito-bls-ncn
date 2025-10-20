@@ -3,20 +3,30 @@ use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup, PrimeGroup};
 use ark_ff::AdditiveGroup;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use commonware_cryptography::{
-    Hasher as _, PublicKey as CommonwarePublicKey, Sha256, Signature as CommonwareSignature, Signer, Verifier,
+    Hasher as _, PublicKey as CommonwarePublicKey, Sha256, Signature as CommonwareSignature,
+    Signer, Verifier,
 };
 
-use commonware_codec::{Error, FixedSize, Read, Write};
-use commonware_utils::{array::Array, hex, union_unique};
 use bytes::buf::BufMut;
 use bytes::Buf;
+use commonware_codec::{Error, FixedSize, Read, Write};
+use commonware_utils::{array::Array, hex, union_unique};
 use std::{
     fmt::{self, Debug, Display},
     hash::{Hash, Hasher},
     ops::Deref,
 };
 
-use crate::bls::{solana_bls::{solana_hash_to_curve, solana_sign, solana_verify_signature_with_g2, solana_verify_single_signature}, solana_bls_interface::{SolanaBN254G1, SolanaBN254G2, SolanaBN254Keypair, SolanaBN254PublicKey, SolanaBN254Signature}};
+use crate::bls::{
+    solana_bls::{
+        solana_hash_to_curve, solana_sign, solana_verify_signature_with_g2,
+        solana_verify_single_signature,
+    },
+    solana_bls_interface::{
+        SolanaBN254G1, SolanaBN254G2, SolanaBN254Keypair, SolanaBN254PublicKey,
+        SolanaBN254Signature,
+    },
+};
 
 // const DIGEST_LENGTH: usize = 32;
 // const PRIVATE_KEY_LENGTH: usize = 32;
@@ -37,9 +47,10 @@ impl Signer for SolanaBN254Keypair {
     type PublicKey = SolanaBN254G2;
 
     fn sign(&self, namespace: Option<&[u8]>, message: &[u8]) -> Self::Signature {
-
-        let raw_signature = solana_sign(&self.private_key, message, namespace).expect("Could not sign");
-        let signature = SolanaBN254Signature::new(&raw_signature).expect("Could not create signature");
+        let raw_signature =
+            solana_sign(&self.private_key, message, namespace).expect("Could not sign");
+        let signature =
+            SolanaBN254Signature::new(&raw_signature).expect("Could not create signature");
 
         signature
     }
@@ -52,10 +63,16 @@ impl Signer for SolanaBN254Keypair {
 impl Verifier for SolanaBN254Keypair {
     type Signature = SolanaBN254Signature;
 
-    fn verify(&self, namespace: Option<&[u8]>, message: &[u8], signature: &Self::Signature) -> bool {
+    fn verify(
+        &self,
+        namespace: Option<&[u8]>,
+        message: &[u8],
+        signature: &Self::Signature,
+    ) -> bool {
         let g1 = &self.public_key.g1.raw;
         let g2 = &self.public_key.g2.raw;
-        solana_verify_single_signature(g1, g2, &signature.raw, message, namespace).expect("Could not verify signature")
+        solana_verify_single_signature(g1, g2, &signature.raw, message, namespace)
+            .expect("Could not verify signature")
     }
 }
 
@@ -282,13 +299,14 @@ impl Display for SolanaBN254G2 {
 impl Verifier for SolanaBN254G2 {
     type Signature = SolanaBN254Signature;
 
-    fn verify(&self, namespace: Option<&[u8]>, message: &[u8], signature: &Self::Signature) -> bool {
-        solana_verify_signature_with_g2(
-            &self.raw,
-            &signature.raw,
-            message,
-            namespace
-        ).expect("Could not verify")
+    fn verify(
+        &self,
+        namespace: Option<&[u8]>,
+        message: &[u8],
+        signature: &Self::Signature,
+    ) -> bool {
+        solana_verify_signature_with_g2(&self.raw, &signature.raw, message, namespace)
+            .expect("Could not verify")
     }
 }
 

@@ -1,11 +1,20 @@
 use ark_bn254::{Fq, Fq2, Fr, G1Projective, G2Affine, G2Projective};
-use ark_ec::{CurveGroup, AffineRepr};
-use ark_ff::{BigInteger, Field, PrimeField, One};
-use solana_keypair::Keypair;
+use ark_ec::{AffineRepr, CurveGroup};
+use ark_ff::{BigInteger, Field, One, PrimeField};
 use serde_json;
-use solana_bn254::{compression::prelude::{alt_bn128_g1_compress, alt_bn128_g1_decompress, alt_bn128_g2_compress, alt_bn128_g2_decompress}, prelude::*};
+use solana_bn254::{
+    compression::prelude::{
+        alt_bn128_g1_compress, alt_bn128_g1_decompress, alt_bn128_g2_compress,
+        alt_bn128_g2_decompress,
+    },
+    prelude::*,
+};
+use solana_keypair::Keypair;
 
-use crate::bls::solana_bls::{offchain_g1_from_private_key, offchain_g2_from_private_key, offchain_parse_g2_point, solana_sign, aggregate_signatures};
+use crate::bls::solana_bls::{
+    aggregate_signatures, offchain_g1_from_private_key, offchain_g2_from_private_key,
+    offchain_parse_g2_point, solana_sign,
+};
 
 pub type SolanaBN254Signature = SolanaBN254G1;
 #[derive(Clone, Copy)]
@@ -20,7 +29,8 @@ impl SolanaBN254G1 {
         let x = Fq::from_be_bytes_mod_order(&bytes[0..32]);
         let y = Fq::from_be_bytes_mod_order(&bytes[32..64]);
         let point = G1Projective::new(x, y, Fq::one());
-        let compressed = alt_bn128_g1_compress(bytes).map_err(|e| format!("Could not compress bytes: {:?}", e))?;
+        let compressed = alt_bn128_g1_compress(bytes)
+            .map_err(|e| format!("Could not compress bytes: {:?}", e))?;
 
         Ok(Self {
             point,
@@ -37,14 +47,16 @@ impl SolanaBN254G1 {
     }
 
     pub fn from_string(string: &str) -> Result<Self, String> {
-        let bytes = hex::decode(string).map_err(|e| format!("Could not decode hex string: {:?}", e))?;
+        let bytes =
+            hex::decode(string).map_err(|e| format!("Could not decode hex string: {:?}", e))?;
         let bytes = bytes.try_into().map_err(|_| "Invalid length".to_string())?;
 
         Self::new(&bytes)
     }
 
     pub fn from_compressed_string(string: &str) -> Result<Self, String> {
-        let bytes = hex::decode(string).map_err(|e| format!("Could not decode hex string: {:?}", e))?;
+        let bytes =
+            hex::decode(string).map_err(|e| format!("Could not decode hex string: {:?}", e))?;
         let bytes = bytes.try_into().map_err(|_| "Invalid length".to_string())?;
 
         Self::from_compressed(&bytes)
@@ -60,7 +72,7 @@ impl SolanaBN254G1 {
 }
 
 #[derive(Clone, Copy)]
-pub struct SolanaBN254G2{
+pub struct SolanaBN254G2 {
     pub point: G2Projective,
     pub raw: [u8; 128],
     pub compressed: [u8; 64],
@@ -102,14 +114,16 @@ impl SolanaBN254G2 {
     }
 
     pub fn from_string(string: &str) -> Result<Self, String> {
-        let bytes = hex::decode(string).map_err(|e| format!("Could not decode hex string: {:?}", e))?;
+        let bytes =
+            hex::decode(string).map_err(|e| format!("Could not decode hex string: {:?}", e))?;
         let bytes = bytes.try_into().map_err(|_| "Invalid length".to_string())?;
 
         Self::new(&bytes)
     }
 
     pub fn from_compressed_string(string: &str) -> Result<Self, String> {
-        let bytes = hex::decode(string).map_err(|e| format!("Could not decode hex string: {:?}", e))?;
+        let bytes =
+            hex::decode(string).map_err(|e| format!("Could not decode hex string: {:?}", e))?;
         let bytes = bytes.try_into().map_err(|_| "Invalid length".to_string())?;
 
         Self::from_compressed(&bytes)
@@ -171,8 +185,8 @@ impl SolanaBN254PublicKey {
 
     /// Deserialize public key from JSON string
     pub fn from_json(json_str: &str) -> Result<Self, String> {
-        let json_obj: serde_json::Value = serde_json::from_str(json_str)
-            .map_err(|e| format!("Failed to parse JSON: {:?}", e))?;
+        let json_obj: serde_json::Value =
+            serde_json::from_str(json_str).map_err(|e| format!("Failed to parse JSON: {:?}", e))?;
 
         let g1_raw_hex = json_obj["g1"]["raw"]
             .as_str()
@@ -223,7 +237,9 @@ impl SolanaBN254Keypair {
 
     pub fn from_string(private_key: &str) -> Result<Self, String> {
         let private_key = hex::decode(private_key).map_err(|_| "Invalid private key")?;
-        let private_key = private_key.try_into().map_err(|_| "Invalid private key length")?;
+        let private_key = private_key
+            .try_into()
+            .map_err(|_| "Invalid private key length")?;
         Self::new(&private_key)
     }
 
@@ -273,8 +289,8 @@ impl SolanaBN254Keypair {
 
     /// Deserialize keypair from JSON string
     pub fn from_json(json_str: &str) -> Result<Self, String> {
-        let json_obj: serde_json::Value = serde_json::from_str(json_str)
-            .map_err(|e| format!("Failed to parse JSON: {:?}", e))?;
+        let json_obj: serde_json::Value =
+            serde_json::from_str(json_str).map_err(|e| format!("Failed to parse JSON: {:?}", e))?;
 
         let private_key_hex = json_obj["private_key"]
             .as_str()
@@ -286,14 +302,13 @@ impl SolanaBN254Keypair {
     /// Write keypair to JSON file
     pub fn to_json_file(&self, path: &str) -> Result<(), String> {
         let json_str = self.to_json_pretty()?;
-        std::fs::write(path, json_str)
-            .map_err(|e| format!("Failed to write to file: {:?}", e))
+        std::fs::write(path, json_str).map_err(|e| format!("Failed to write to file: {:?}", e))
     }
 
     /// Read keypair from JSON file
     pub fn from_json_file(path: &str) -> Result<Self, String> {
-        let json_str = std::fs::read_to_string(path)
-            .map_err(|e| format!("Failed to read file: {:?}", e))?;
+        let json_str =
+            std::fs::read_to_string(path).map_err(|e| format!("Failed to read file: {:?}", e))?;
         Self::from_json(&json_str)
     }
 }
@@ -301,20 +316,18 @@ impl SolanaBN254Keypair {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ark_bn254::{G1Affine, Fr};
+    use ark_bn254::{Fr, G1Affine};
     use ark_ff::PrimeField;
+    use ark_serialize::CanonicalDeserialize;
+    use ark_serialize::CanonicalSerialize;
     use hex;
     use solana_keypair::Keypair;
-    use ark_serialize::CanonicalSerialize;
-    use ark_serialize::CanonicalDeserialize;
 
     // Bread (formerly BN254) crate imports
     use bn254::{
-        PrivateKey as BreadPrivateKey,
-        G1PublicKey as BreadG1PublicKey,
+        aggregate_signatures as bread_aggregate_signatures, Bn254 as Bread,
+        G1PublicKey as BreadG1PublicKey, PrivateKey as BreadPrivateKey,
         Signature as BreadSignature,
-        Bn254 as Bread,
-        aggregate_signatures as bread_aggregate_signatures
     };
     use commonware_cryptography::{Signer, Verifier};
 
@@ -354,7 +367,8 @@ mod tests {
         // Test data - create a valid scalar and serialize it properly
         let private_key_scalar = Fr::from(42u64); // Valid scalar
         let mut private_key_bytes = generate_random_bls_private_key();
-        private_key_scalar.serialize_compressed(&mut private_key_bytes[..])
+        private_key_scalar
+            .serialize_compressed(&mut private_key_bytes[..])
             .expect("Failed to serialize scalar");
 
         let message = b"test message for compatibility";
@@ -393,8 +407,9 @@ mod tests {
                 .expect("Failed to derive G1 pubkey");
 
             // Create Bread signer and derive G1 pubkey
-            let bread_signer = Bread::new(BreadPrivateKey::try_from(private_key_bytes.to_vec()).unwrap())
-                .expect("Failed to create Bread signer");
+            let bread_signer =
+                Bread::new(BreadPrivateKey::try_from(private_key_bytes.to_vec()).unwrap())
+                    .expect("Failed to create Bread signer");
             let bread_g1_pubkey = bread_signer.public_g1();
 
             // Extract coordinates from our uncompressed format
@@ -406,8 +421,16 @@ mod tests {
             let bread_y_str = bread_g1_pubkey.get_y();
 
             // Compare coordinates
-            assert_eq!(our_x.to_string(), bread_x_str, "G1 X coordinates should match");
-            assert_eq!(our_y.to_string(), bread_y_str, "G1 Y coordinates should match");
+            assert_eq!(
+                our_x.to_string(),
+                bread_x_str,
+                "G1 X coordinates should match"
+            );
+            assert_eq!(
+                our_y.to_string(),
+                bread_y_str,
+                "G1 Y coordinates should match"
+            );
 
             println!("✓ G1 public keys match perfectly");
             println!("  X: {}", bread_x_str);
@@ -427,18 +450,20 @@ mod tests {
                 .expect("Failed to derive G2 pubkey");
 
             // Get G2 pubkey from Bread signer
-            let bread_signer = Bread::new(BreadPrivateKey::try_from(private_key_bytes.to_vec()).unwrap())
-                .expect("Failed to create Bread signer");
+            let bread_signer =
+                Bread::new(BreadPrivateKey::try_from(private_key_bytes.to_vec()).unwrap())
+                    .expect("Failed to create Bread signer");
             let bread_g2_pubkey = bread_signer.public_key();
 
             // Bread crate uses compressed format, we need to parse our uncompressed format
             // and potentially compress it for comparison
-            let our_g2_point = offchain_parse_g2_point(&our_g2_pubkey)
-                .expect("Failed to parse our G2 point");
+            let our_g2_point =
+                offchain_parse_g2_point(&our_g2_pubkey).expect("Failed to parse our G2 point");
 
             // Serialize our G2 point to compressed format for comparison
             let mut our_g2_compressed = vec![0u8; 64]; // G2 compressed is 64 bytes
-            our_g2_point.serialize_compressed(&mut our_g2_compressed[..])
+            our_g2_point
+                .serialize_compressed(&mut our_g2_compressed[..])
                 .expect("Failed to compress G2 point");
 
             // Compare the compressed representations
@@ -466,8 +491,9 @@ mod tests {
                 .expect("Failed to generate signature");
 
             // Generate signature using Bread crate
-            let bread_signer = Bread::new(BreadPrivateKey::try_from(private_key_bytes.to_vec()).unwrap())
-                .expect("Failed to create Bread signer");
+            let bread_signer =
+                Bread::new(BreadPrivateKey::try_from(private_key_bytes.to_vec()).unwrap())
+                    .expect("Failed to create Bread signer");
             let bread_signature = bread_signer.sign(Some(domain), message);
 
             // Parse our signature to get the G1 point
@@ -477,7 +503,8 @@ mod tests {
 
             // Serialize our signature to compressed format
             let mut our_sig_compressed = generate_random_bls_private_key().to_vec(); // G1 compressed is 32 bytes
-            our_sig_point.serialize_compressed(&mut our_sig_compressed[..])
+            our_sig_point
+                .serialize_compressed(&mut our_sig_compressed[..])
                 .expect("Failed to compress signature");
 
             // Compare compressed signatures
@@ -488,7 +515,10 @@ mod tests {
             );
 
             println!("✓ Signatures match perfectly");
-            println!("  Compressed signature (hex): {}", hex::encode(&our_sig_compressed));
+            println!(
+                "  Compressed signature (hex): {}",
+                hex::encode(&our_sig_compressed)
+            );
         }
 
         // ====================================================================
@@ -509,7 +539,8 @@ mod tests {
             let sig_point = G1Affine::new_unchecked(sig_x, sig_y);
 
             let mut sig_compressed = generate_random_bls_private_key().to_vec();
-            sig_point.serialize_compressed(&mut sig_compressed[..])
+            sig_point
+                .serialize_compressed(&mut sig_compressed[..])
                 .expect("Failed to compress signature");
 
             // Create Bread signature object
@@ -517,8 +548,9 @@ mod tests {
                 .expect("Failed to create Bread signature");
 
             // Get public key for verification
-            let bread_signer = Bread::new(BreadPrivateKey::try_from(private_key_bytes.to_vec()).unwrap())
-                .expect("Failed to create Bread signer");
+            let bread_signer =
+                Bread::new(BreadPrivateKey::try_from(private_key_bytes.to_vec()).unwrap())
+                    .expect("Failed to create Bread signer");
             let bread_pubkey = bread_signer.public_key();
 
             // Verify using Bread crate
@@ -535,11 +567,7 @@ mod tests {
             println!("\n=== Testing Signature Aggregation Compatibility ===");
 
             // Create multiple signatures with properly serialized private keys
-            let scalars = [
-                Fr::from(1u64),
-                Fr::from(2u64),
-                Fr::from(3u64),
-            ];
+            let scalars = [Fr::from(1u64), Fr::from(2u64), Fr::from(3u64)];
 
             let mut our_signatures = Vec::new();
             let mut bread_signatures = Vec::new();
@@ -547,7 +575,8 @@ mod tests {
             for scalar in &scalars {
                 // Serialize scalar for Bread crate
                 let mut serialized_key = generate_random_bls_private_key();
-                scalar.serialize_compressed(&mut serialized_key[..])
+                scalar
+                    .serialize_compressed(&mut serialized_key[..])
                     .expect("Failed to serialize key");
 
                 // Convert to big-endian for our implementation
@@ -562,15 +591,14 @@ mod tests {
                 // Bread signature
                 let bread_privkey = BreadPrivateKey::try_from(serialized_key.to_vec())
                     .expect("Failed to create Bread private key");
-                let bread_signer = Bread::new(bread_privkey)
-                    .expect("Failed to create signer");
+                let bread_signer = Bread::new(bread_privkey).expect("Failed to create signer");
                 let bread_sig = bread_signer.sign(Some(domain), message);
                 bread_signatures.push(bread_sig);
             }
 
             // Aggregate using our implementation
-            let our_agg_sig = aggregate_signatures(&our_signatures)
-                .expect("Failed to aggregate signatures");
+            let our_agg_sig =
+                aggregate_signatures(&our_signatures).expect("Failed to aggregate signatures");
 
             // Aggregate using Bread crate
             let bread_agg_sig = bread_aggregate_signatures(&bread_signatures)
@@ -582,7 +610,8 @@ mod tests {
             let agg_point = G1Affine::new_unchecked(agg_x, agg_y);
 
             let mut our_agg_compressed = generate_random_bls_private_key().to_vec();
-            agg_point.serialize_compressed(&mut our_agg_compressed[..])
+            agg_point
+                .serialize_compressed(&mut our_agg_compressed[..])
                 .expect("Failed to compress aggregated signature");
 
             // Compare aggregated signatures
@@ -612,10 +641,9 @@ mod tests {
             let y = Fq::from_be_bytes_mod_order(&our_g1[32..64]);
 
             // Create Bread G1PublicKey from coordinates
-            let bread_g1 = BreadG1PublicKey::create_from_g1_coordinates(
-                &x.to_string(),
-                &y.to_string()
-            ).expect("Failed to create G1PublicKey from coordinates");
+            let bread_g1 =
+                BreadG1PublicKey::create_from_g1_coordinates(&x.to_string(), &y.to_string())
+                    .expect("Failed to create G1PublicKey from coordinates");
 
             // Verify they match
             assert_eq!(bread_g1.get_x(), x.to_string(), "X coordinate should match");

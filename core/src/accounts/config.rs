@@ -5,7 +5,11 @@ use solana_account_info::AccountInfo;
 use solana_program_error::ProgramError;
 use solana_pubkey::Pubkey;
 
-use crate::{discriminators::Discriminators, pod::PodOption, utils::{check_account, DataLen, Discriminator, Initialized}};
+use crate::{
+    discriminators::Discriminators,
+    pod::PodOption,
+    utils::{check_account, DataLen, Discriminator, Initialized},
+};
 
 /// Individual operator account that stores BLS keys for a specific operator in a specific NCN
 #[derive(Debug, Clone, Copy)]
@@ -19,7 +23,6 @@ pub struct Config {
     /// Reserved for future use
     pub reserved: [u8; 256], // Reserved for future use, must be zeroed
 }
-
 
 impl Discriminator for Config {
     const DISCRIMINATOR: u8 = Discriminators::Config as u8;
@@ -42,12 +45,7 @@ impl Initialized for Config {
 impl Config {
     pub const SEED: &'static [u8] = b"config";
 
-    pub fn initialize(
-        &mut self,
-        ncn: &Pubkey,
-        bump: u8,
-    ) -> Result<(), ProgramError> {
-
+    pub fn initialize(&mut self, ncn: &Pubkey, bump: u8) -> Result<(), ProgramError> {
         if self.is_initialized() {
             return Err(ProgramError::AccountAlreadyInitialized);
         }
@@ -60,10 +58,7 @@ impl Config {
     }
 
     pub fn seeds(ncn: &Pubkey) -> Vec<Vec<u8>> {
-        vec![
-            Self::SEED.to_vec(),
-            ncn.to_bytes().to_vec(),
-        ]
+        vec![Self::SEED.to_vec(), ncn.to_bytes().to_vec()]
     }
 
     pub fn offchain_find_program_address(
@@ -120,7 +115,7 @@ impl Default for Config {
             discriminator: PodOption::none(),
             bump: 0,
             ncn: Pubkey::default(),
-            reserved: [0; 256]
+            reserved: [0; 256],
         }
     }
 }

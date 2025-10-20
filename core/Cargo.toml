@@ -11,36 +11,43 @@ readme = { workspace = true }
 
 [features]
 default = []
-commonware = ["dep:commonware-cryptography", "dep:commonware-codec", "dep:commonware-utils", "dep:bytes", "dep:bn254", "dep:serde_json"]
+commonware = [
+    "dep:commonware-cryptography",
+    "dep:commonware-codec",
+    "dep:commonware-utils",
+    "dep:bytes",
+    "dep:bn254",
+    "dep:serde_json",
+]
 
 [dependencies]
-solana-pubkey = { workspace = true }
-solana-bn254 = { workspace = true }
-solana-signer = { workspace = true }
-solana-keypair = { workspace = true }
-solana-program = { workspace = true }
-solana-sha256-hasher = { workspace = true }
+ark-bn254 = { workspace = true }
 ark-ec = { workspace = true }
 ark-ff = { workspace = true }
-ark-bn254 = { workspace = true }
 ark-serialize = { workspace = true }
-hex = { workspace = true }
-commonware-cryptography = { workspace = true, optional = true }
-commonware-codec = { workspace = true, optional = true }
-commonware-utils = { workspace = true, optional = true }
-bytes = { workspace = true, optional = true }
 bn254 = { workspace = true, optional = true }
+bytes = { workspace = true, optional = true }
+commonware-codec = { workspace = true, optional = true }
+commonware-cryptography = { workspace = true, optional = true }
+commonware-utils = { workspace = true, optional = true }
+hex = { workspace = true }
+jito-restaking-core = { workspace = true }
+jito-vault-core = { workspace = true }
 serde_json = { workspace = true, optional = true }
 # jito-bytemuck = { workspace = true }
 # bytemuck = { workspace = true }
 solana-account-info = { workspace = true }
-solana-program-error = { workspace = true }
+solana-bn254 = { workspace = true }
+solana-keypair = { workspace = true }
 solana-msg = { workspace = true }
-jito-restaking-core = { workspace = true }
-jito-vault-core = { workspace = true }
-spl-token-interface = { workspace = true }
-spl-associated-token-account-interface = { workspace = true }
+solana-program = { workspace = true }
+solana-program-error = { workspace = true }
+solana-pubkey = { workspace = true }
+solana-sha256-hasher = { workspace = true }
+solana-signer = { workspace = true }
 solana-system-interface = { workspace = true }
+spl-associated-token-account-interface = { workspace = true }
+spl-token-interface = { workspace = true }
 
 [dev-dependencies]
 bn254 = { workspace = true }

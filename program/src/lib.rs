@@ -1,4 +1,3 @@
-
 use solana_program::declare_id;
 
 pub mod realloc_rolling_snapshot;
@@ -10,8 +9,8 @@ declare_id!("3fKQSi6VzzDUJSmeksS8qK6RB3Gs3UoZWtsQD3xagy45");
 mod entrypoint {
     use jito_bls_ncn_core::instructions::JitoBlsNCNInstructions;
     use solana_account_info::AccountInfo;
-    use solana_program_entrypoint::{ProgramResult, entrypoint};
     use solana_msg::msg;
+    use solana_program_entrypoint::{entrypoint, ProgramResult};
     use solana_program_error::ProgramError;
     use solana_pubkey::Pubkey;
 
@@ -49,20 +48,12 @@ mod entrypoint {
         match instruction {
             JitoBlsNCNInstructions::ReallocRollingSnapshot => {
                 msg!("Reallocating Rolling Snapshot");
-                process_realloc_rolling_snapshot(
-                    program_id,
-                    accounts,
-                    instruction_data,
-                )
-            },
+                process_realloc_rolling_snapshot(program_id, accounts, instruction_data)
+            }
             JitoBlsNCNInstructions::Vote => {
                 msg!("Voting");
-                process_vote(
-                    program_id,
-                    accounts,
-                    instruction_data,
-                )
-            },
+                process_vote(program_id, accounts, instruction_data)
+            }
             _ => {
                 msg!("Invalid IX ");
                 Err(ProgramError::InvalidInstructionData)

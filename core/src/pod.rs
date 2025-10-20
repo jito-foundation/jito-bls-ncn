@@ -13,7 +13,9 @@ pub struct PodU16 {
 impl From<u16> for PodU16 {
     #[inline(always)]
     fn from(value: u16) -> Self {
-        Self { data: value.to_le_bytes() }
+        Self {
+            data: value.to_le_bytes(),
+        }
     }
 }
 
@@ -26,9 +28,13 @@ impl From<PodU16> for u16 {
 
 impl PodU16 {
     #[inline(always)]
-    pub fn get(&self) -> u16 { u16::from_le_bytes(self.data) }
+    pub fn get(&self) -> u16 {
+        u16::from_le_bytes(self.data)
+    }
     #[inline(always)]
-    pub fn set(&mut self, value: u16) { self.data = value.to_le_bytes(); }
+    pub fn set(&mut self, value: u16) {
+        self.data = value.to_le_bytes();
+    }
 }
 
 // ---------------- PODU32 ------------------------
@@ -42,7 +48,9 @@ pub struct PodU32 {
 impl From<u32> for PodU32 {
     #[inline(always)]
     fn from(value: u32) -> Self {
-        Self { data: value.to_le_bytes() }
+        Self {
+            data: value.to_le_bytes(),
+        }
     }
 }
 
@@ -55,9 +63,13 @@ impl From<PodU32> for u32 {
 
 impl PodU32 {
     #[inline(always)]
-    pub fn get(&self) -> u32 { u32::from_le_bytes(self.data) }
+    pub fn get(&self) -> u32 {
+        u32::from_le_bytes(self.data)
+    }
     #[inline(always)]
-    pub fn set(&mut self, value: u32) { self.data = value.to_le_bytes(); }
+    pub fn set(&mut self, value: u32) {
+        self.data = value.to_le_bytes();
+    }
 }
 
 // ---------------- PODU64 ------------------------
@@ -71,7 +83,9 @@ pub struct PodU64 {
 impl From<u64> for PodU64 {
     #[inline(always)]
     fn from(value: u64) -> Self {
-        Self { data: value.to_le_bytes() }
+        Self {
+            data: value.to_le_bytes(),
+        }
     }
 }
 
@@ -84,9 +98,13 @@ impl From<PodU64> for u64 {
 
 impl PodU64 {
     #[inline(always)]
-    pub fn get(&self) -> u64 { u64::from_le_bytes(self.data) }
+    pub fn get(&self) -> u64 {
+        u64::from_le_bytes(self.data)
+    }
     #[inline(always)]
-    pub fn set(&mut self, value: u64) { self.data = value.to_le_bytes(); }
+    pub fn set(&mut self, value: u64) {
+        self.data = value.to_le_bytes();
+    }
 }
 
 // ---------------- PODU128 ------------------------
@@ -100,7 +118,9 @@ pub struct PodU128 {
 impl From<u128> for PodU128 {
     #[inline(always)]
     fn from(value: u128) -> Self {
-        Self { data: value.to_le_bytes() }
+        Self {
+            data: value.to_le_bytes(),
+        }
     }
 }
 
@@ -113,9 +133,13 @@ impl From<PodU128> for u128 {
 
 impl PodU128 {
     #[inline(always)]
-    pub fn get(&self) -> u128 { u128::from_le_bytes(self.data) }
+    pub fn get(&self) -> u128 {
+        u128::from_le_bytes(self.data)
+    }
     #[inline(always)]
-    pub fn set(&mut self, value: u128) { self.data = value.to_le_bytes(); }
+    pub fn set(&mut self, value: u128) {
+        self.data = value.to_le_bytes();
+    }
 }
 
 // ---------------- PODBool ------------------------
@@ -131,24 +155,34 @@ impl PodBool {
     pub const FALSE: Self = Self { data: 0 };
 
     #[inline(always)]
-    pub fn is_valid(&self) -> bool { self.data == 0 || self.data == 1 }
+    pub fn is_valid(&self) -> bool {
+        self.data == 0 || self.data == 1
+    }
 
     #[inline(always)]
-    pub fn get(&self) -> bool { self.data != 0 }
+    pub fn get(&self) -> bool {
+        self.data != 0
+    }
 
     #[inline(always)]
-    pub fn set(&mut self, value: bool) { self.data = value as u8; }
+    pub fn set(&mut self, value: bool) {
+        self.data = value as u8;
+    }
 }
 
 // Permissive: any nonzero -> true (cannot fail)
 impl From<PodBool> for bool {
     #[inline(always)]
-    fn from(p: PodBool) -> Self { p.data != 0 }
+    fn from(p: PodBool) -> Self {
+        p.data != 0
+    }
 }
 
 impl From<bool> for PodBool {
     #[inline(always)]
-    fn from(b: bool) -> Self { Self { data: b as u8 } }
+    fn from(b: bool) -> Self {
+        Self { data: b as u8 }
+    }
 }
 
 // ---------------- PODOption<T> ( Also 1 byte aligned ) ------------------------
@@ -168,23 +202,37 @@ impl<T> PodOption<T> {
     /// `None` (leaves value uninitialized)
     #[inline(always)]
     pub const fn none() -> Self {
-        Self { tag: Self::NONE_TAG, value: MaybeUninit::uninit() }
+        Self {
+            tag: Self::NONE_TAG,
+            value: MaybeUninit::uninit(),
+        }
     }
 
     /// `Some(v)`
     #[inline(always)]
     pub const fn some(v: T) -> Self {
-        Self { tag: Self::SOME_TAG, value: MaybeUninit::new(v) }
+        Self {
+            tag: Self::SOME_TAG,
+            value: MaybeUninit::new(v),
+        }
     }
 
     #[inline(always)]
-    pub const fn is_some(&self) -> bool { self.tag == Self::SOME_TAG }
+    pub const fn is_some(&self) -> bool {
+        self.tag == Self::SOME_TAG
+    }
     #[inline(always)]
-    pub const fn is_none(&self) -> bool { self.tag == Self::NONE_TAG }
+    pub const fn is_none(&self) -> bool {
+        self.tag == Self::NONE_TAG
+    }
     #[inline(always)]
-    pub const fn tag(&self) -> u8 { self.tag }
+    pub const fn tag(&self) -> u8 {
+        self.tag
+    }
     #[inline(always)]
-    pub const fn is_valid_tag(&self) -> bool { self.tag == 0 || self.tag == 1 }
+    pub const fn is_valid_tag(&self) -> bool {
+        self.tag == 0 || self.tag == 1
+    }
 
     /// `Some(&T)` if present
     #[inline(always)]
@@ -225,7 +273,9 @@ impl<T> PodOption<T> {
     /// Copy-out without changing tag (requires `T: Copy`)
     #[inline(always)]
     pub fn copied(&self) -> Option<T>
-    where T: Copy {
+    where
+        T: Copy,
+    {
         if self.is_some() {
             Some(unsafe { *self.value.assume_init_ref() })
         } else {
@@ -236,7 +286,9 @@ impl<T> PodOption<T> {
     /// Take value and leave `None` (requires `T: Copy`)
     #[inline(always)]
     pub fn take(&mut self) -> Option<T>
-    where T: Copy {
+    where
+        T: Copy,
+    {
         if self.is_some() {
             self.tag = Self::NONE_TAG;
             Some(unsafe { self.value.assume_init() })
@@ -252,7 +304,7 @@ impl<T> From<Option<T>> for PodOption<T> {
     fn from(o: Option<T>) -> Self {
         match o {
             Some(v) => Self::some(v),
-            None    => Self::none(),
+            None => Self::none(),
         }
     }
 }
@@ -272,7 +324,9 @@ impl<T> TryFrom<PodOption<T>> for Option<T> {
 // Traits
 impl<T> Default for PodOption<T> {
     #[inline(always)]
-    fn default() -> Self { Self::none() }
+    fn default() -> Self {
+        Self::none()
+    }
 }
 
 impl<T: Copy> Copy for PodOption<T> {}
@@ -399,7 +453,12 @@ mod tests {
 
     #[test]
     fn podu128_roundtrip() {
-        let vals = [0u128, 1, 0x0123_4567_89AB_CDEF_0011_2233_4455_6677u128, u128::MAX];
+        let vals = [
+            0u128,
+            1,
+            0x0123_4567_89AB_CDEF_0011_2233_4455_6677u128,
+            u128::MAX,
+        ];
         for &v in &vals {
             let p = PodU128::from(v);
             assert_eq!(p.get(), v);
@@ -506,9 +565,15 @@ mod tests {
     fn podoption_invalid_tag_error() {
         // Build a value with tag=2 via a raw layout mirror.
         #[repr(C)]
-        struct Raw<T> { tag: u8, value: MaybeUninit<T> }
+        struct Raw<T> {
+            tag: u8,
+            value: MaybeUninit<T>,
+        }
 
-        let raw = Raw::<u8> { tag: 2, value: MaybeUninit::uninit() };
+        let raw = Raw::<u8> {
+            tag: 2,
+            value: MaybeUninit::uninit(),
+        };
         let poison: PodOption<u8> = unsafe { core::mem::transmute(raw) };
         let res: Result<Option<u8>, ()> = Option::try_from(poison);
         assert!(res.is_err());

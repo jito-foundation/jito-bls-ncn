@@ -3,7 +3,13 @@ use solana_msg::msg;
 use solana_program_error::ProgramError;
 use solana_pubkey::Pubkey;
 
-use crate::{accounts::bls_operator::BlsOperator, bls::solana_bls::{add_g1, sub_g1}, discriminators::Discriminators, pod::{PodOption, PodU16, PodU64}, utils::{check_account, DataLen, Discriminator, Initialized}};
+use crate::{
+    accounts::bls_operator::BlsOperator,
+    bls::solana_bls::{add_g1, sub_g1},
+    discriminators::Discriminators,
+    pod::{PodOption, PodU16, PodU64},
+    utils::{check_account, DataLen, Discriminator, Initialized},
+};
 
 /// Individual operator account that stores BLS keys for a specific operator in a specific NCN
 #[derive(Debug, Clone, Copy)]
@@ -25,7 +31,6 @@ pub struct RollingSnapshot {
     /// Operators
     pub operators: [PodOption<OperatorEntry>; 256],
 }
-
 
 impl Discriminator for RollingSnapshot {
     const DISCRIMINATOR: u8 = Discriminators::RollingSnapshot as u8;
@@ -49,10 +54,7 @@ impl RollingSnapshot {
     pub const MAX_OPERATORS: u16 = 256;
     pub const SEED: &'static [u8] = b"rolling_snapshot";
 
-    pub fn initialize(
-        &mut self,
-    ) -> Result<(), ProgramError> {
-
+    pub fn initialize(&mut self) -> Result<(), ProgramError> {
         if self.is_initialized() {
             return Err(ProgramError::AccountAlreadyInitialized);
         }
@@ -63,10 +65,7 @@ impl RollingSnapshot {
     }
 
     pub fn seeds(ncn: &Pubkey) -> Vec<Vec<u8>> {
-        vec![
-            Self::SEED.to_vec(),
-            ncn.to_bytes().to_vec(),
-        ]
+        vec![Self::SEED.to_vec(), ncn.to_bytes().to_vec()]
     }
 
     pub fn offchain_find_program_address(
@@ -116,7 +115,7 @@ impl RollingSnapshot {
         self.operator_count.into()
     }
 
-    fn set_operator_count(&mut self, count: u16) -> Result<(), ProgramError>{
+    fn set_operator_count(&mut self, count: u16) -> Result<(), ProgramError> {
         if count > Self::MAX_OPERATORS {
             msg!("Cannot set operator count to more than maximum");
             return Err(ProgramError::InvalidArgument);
@@ -127,7 +126,7 @@ impl RollingSnapshot {
         Ok(())
     }
 
-    pub fn add_operator(&mut self, operator: &BlsOperator) -> Result<(), ProgramError>{
+    pub fn add_operator(&mut self, operator: &BlsOperator) -> Result<(), ProgramError> {
         if self.operator_count() >= Self::MAX_OPERATORS {
             msg!("Already at maximum operators");
             return Err(ProgramError::InvalidArgument);
@@ -159,16 +158,23 @@ impl RollingSnapshot {
             Err(err) => {
                 msg!("Failed to add operator G1: {}", err);
                 return Err(ProgramError::InvalidArgument);
-            },
+            }
         }
 
-        let new_operator_count = self.operator_count().checked_add(1).ok_or(ProgramError::ArithmeticOverflow)?;
+        let new_operator_count = self
+            .operator_count()
+            .checked_add(1)
+            .ok_or(ProgramError::ArithmeticOverflow)?;
         self.set_operator_count(new_operator_count)?;
 
         Ok(())
     }
 
-    pub fn check_operator_index(&mut self, operator: &BlsOperator, index: usize) -> Result<(), ProgramError>{
+    pub fn check_operator_index(
+        &mut self,
+        operator: &BlsOperator,
+        index: usize,
+    ) -> Result<(), ProgramError> {
         if index >= self.operator_count() as usize {
             msg!("Invalid operator index");
             return Err(ProgramError::InvalidArgument);
@@ -187,7 +193,11 @@ impl RollingSnapshot {
         Ok(())
     }
 
-    pub fn remove_operator(&mut self, operator: &BlsOperator, index: usize) -> Result<(), ProgramError>{
+    pub fn remove_operator(
+        &mut self,
+        operator: &BlsOperator,
+        index: usize,
+    ) -> Result<(), ProgramError> {
         self.check_operator_index(operator, index)?;
 
         self.operators[index] = PodOption::none();
@@ -202,16 +212,25 @@ impl RollingSnapshot {
             Err(err) => {
                 msg!("Failed to remove operator G1: {}", err);
                 return Err(ProgramError::InvalidArgument);
-            },
+            }
         }
 
-        let new_operator_count = self.operator_count().checked_sub(1).ok_or(ProgramError::ArithmeticOverflow)?;
+        let new_operator_count = self
+            .operator_count()
+            .checked_sub(1)
+            .ok_or(ProgramError::ArithmeticOverflow)?;
         self.set_operator_count(new_operator_count)?;
 
         Ok(())
     }
 
-    pub fn update_operator_weight(&mut self, operator: &BlsOperator, index: usize, weight: u64, current_slot: u64) -> Result<(), ProgramError>{
+    pub fn update_operator_weight(
+        &mut self,
+        operator: &BlsOperator,
+        index: usize,
+        weight: u64,
+        current_slot: u64,
+    ) -> Result<(), ProgramError> {
         self.check_operator_index(operator, index)?;
 
         if let Some(mut updated_operator) = self.operators[index].copied() {
@@ -226,7 +245,12 @@ impl RollingSnapshot {
         }
     }
 
-    pub fn update_operator_g1(&mut self, operator: &BlsOperator, index: usize, g1: &[u8; 64]) -> Result<(), ProgramError>{
+    pub fn update_operator_g1(
+        &mut self,
+        operator: &BlsOperator,
+        index: usize,
+        g1: &[u8; 64],
+    ) -> Result<(), ProgramError> {
         self.check_operator_index(operator, index)?;
 
         if let Some(mut updated_operator) = self.operators[index].copied() {
@@ -235,8 +259,9 @@ impl RollingSnapshot {
 
             self.operators[index] = PodOption::some(updated_operator);
 
-            self.aggregate_g1 = sub_g1(&self.aggregate_g1 , &old_g1).expect("Could not subtract G1");
-            self.aggregate_g1 = add_g1(&self.aggregate_g1 , &updated_operator.g1).expect("Could not add G1");
+            self.aggregate_g1 = sub_g1(&self.aggregate_g1, &old_g1).expect("Could not subtract G1");
+            self.aggregate_g1 =
+                add_g1(&self.aggregate_g1, &updated_operator.g1).expect("Could not add G1");
 
             Ok(())
         } else {
@@ -249,7 +274,9 @@ impl RollingSnapshot {
         for i in 0..self.operator_count() {
             if let Some(operator) = self.operators[i as usize].as_ref() {
                 if operator.last_updated_slot() > last_valid_slot {
-                    total_weight = total_weight.checked_add(operator.weight()).expect("Could not add weight");
+                    total_weight = total_weight
+                        .checked_add(operator.weight())
+                        .expect("Could not add weight");
                 }
             }
         }
@@ -286,7 +313,6 @@ impl Default for OperatorEntry {
 }
 
 impl OperatorEntry {
-
     pub fn last_updated_slot(&self) -> u64 {
         self.last_updated_slot.into()
     }
