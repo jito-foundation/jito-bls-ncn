@@ -1,9 +1,9 @@
 #[cfg(test)]
 mod tests {
+    use crate::fixtures::fixture::TestBuilder;
     use jito_bls_ncn_sdk::id;
     use solana_program::pubkey::Pubkey;
     use solana_program_test::tokio;
-    use crate::fixtures::fixture::TestBuilder;
 
     #[tokio::test]
     async fn test_program_ok() {
@@ -18,7 +18,6 @@ mod tests {
             .expect("Could not get program");
 
         assert!(account.is_some());
-        assert!(account.unwrap().data.len() > 0);
+        assert!(!account.unwrap().data.is_empty());
     }
-
 }

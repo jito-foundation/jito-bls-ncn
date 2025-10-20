@@ -1,30 +1,24 @@
-use ark_bn254::{Fq, Fq2, Fr as Scalar, G1Affine, G1Projective, G2Affine, G2Projective};
-use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup, PrimeGroup};
-use ark_ff::AdditiveGroup;
+use ark_bn254::{Fr as Scalar, G1Affine, G2Affine};
+use ark_ec::AffineRepr;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use commonware_cryptography::{
-    Hasher as _, PublicKey as CommonwarePublicKey, Sha256, Signature as CommonwareSignature,
-    Signer, Verifier,
+    PublicKey as CommonwarePublicKey, Signature as CommonwareSignature, Signer, Verifier,
 };
 
 use bytes::buf::BufMut;
 use bytes::Buf;
 use commonware_codec::{Error, FixedSize, Read, Write};
-use commonware_utils::{array::Array, hex, union_unique};
+use commonware_utils::{array::Array, hex};
 use std::{
-    fmt::{self, Debug, Display},
+    fmt::{Debug, Display},
     hash::{Hash, Hasher},
     ops::Deref,
 };
 
 use crate::bls::{
-    solana_bls::{
-        solana_hash_to_curve, solana_sign, solana_verify_signature_with_g2,
-        solana_verify_single_signature,
-    },
+    solana_bls::{solana_sign, solana_verify_signature_with_g2, solana_verify_single_signature},
     solana_bls_interface::{
-        SolanaBN254G1, SolanaBN254G2, SolanaBN254Keypair, SolanaBN254PublicKey,
-        SolanaBN254Signature,
+        SolanaBN254G1, SolanaBN254G2, SolanaBN254Keypair, SolanaBN254Signature,
     },
 };
 
@@ -35,7 +29,7 @@ use crate::bls::{
 // const G2_LENGTH: usize = 64;
 // const PUBLIC_KEY_LENGTH: usize = G2_LENGTH;
 
-const DIGEST_LENGTH: usize = 32;
+// const DIGEST_LENGTH: usize = 32;
 const PRIVATE_KEY_LENGTH: usize = 32;
 const G1_LENGTH: usize = 64;
 const SIGNATURE_LENGTH: usize = G1_LENGTH;
@@ -49,10 +43,7 @@ impl Signer for SolanaBN254Keypair {
     fn sign(&self, namespace: Option<&[u8]>, message: &[u8]) -> Self::Signature {
         let raw_signature =
             solana_sign(&self.private_key, message, namespace).expect("Could not sign");
-        let signature =
-            SolanaBN254Signature::new(&raw_signature).expect("Could not create signature");
-
-        signature
+        SolanaBN254Signature::new(&raw_signature).expect("Could not create signature")
     }
 
     fn public_key(&self) -> Self::PublicKey {
@@ -143,8 +134,7 @@ impl From<Scalar> for SolanaBN254Keypair {
     fn from(key: Scalar) -> Self {
         let mut raw = [0u8; PRIVATE_KEY_LENGTH];
         key.serialize_compressed(&mut raw[..]).unwrap();
-        let keypair = SolanaBN254Keypair::new(&raw).expect("Could not cast into private key");
-        keypair
+        SolanaBN254Keypair::new(&raw).expect("Could not cast into private key")
     }
 }
 
@@ -251,8 +241,7 @@ impl From<G2Affine> for SolanaBN254G2 {
     fn from(key: G2Affine) -> Self {
         let mut raw = [0u8; PUBLIC_KEY_LENGTH];
         key.serialize_compressed(&mut raw[..]).unwrap();
-        let g2 = SolanaBN254G2::new(&raw).expect("Could not create G2");
-        g2
+        SolanaBN254G2::new(&raw).expect("Could not create G2")
     }
 }
 
@@ -349,18 +338,15 @@ impl PartialEq for SolanaBN254Signature {
         self.raw == other.raw
     }
 }
-
 impl Eq for SolanaBN254Signature {}
-
 impl Ord for SolanaBN254Signature {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.raw.cmp(&other.raw)
     }
 }
-
 impl PartialOrd for SolanaBN254Signature {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.raw.partial_cmp(&other.raw)
+        Some(self.cmp(other))
     }
 }
 
@@ -381,8 +367,7 @@ impl From<G1Affine> for SolanaBN254Signature {
     fn from(sig: G1Affine) -> Self {
         let mut raw = [0u8; SIGNATURE_LENGTH];
         sig.serialize_compressed(&mut raw[..]).unwrap();
-        let g1 = SolanaBN254G1::new(&raw).expect("Could not create G1");
-        g1
+        SolanaBN254G1::new(&raw).expect("Could not create G1")
     }
 }
 

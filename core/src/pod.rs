@@ -333,11 +333,7 @@ impl<T: Copy> Copy for PodOption<T> {}
 impl<T: Copy> Clone for PodOption<T> {
     #[inline(always)]
     fn clone(&self) -> Self {
-        if self.is_some() {
-            Self::some(unsafe { *self.value.assume_init_ref() })
-        } else {
-            Self::none()
-        }
+        *self
     }
 }
 
@@ -374,7 +370,7 @@ mod tests {
 
     // ---------- helpers ----------
     fn assert_copy_clone<T: Copy + Clone + PartialEq + Debug>(v: T) {
-        let c = v.clone();
+        let c = v;
         let cc = c;
         assert_eq!(v, c);
         assert_eq!(c, cc);
@@ -476,12 +472,12 @@ mod tests {
     fn podbool_roundtrip_and_valid() {
         let mut b = PodBool::from(false);
         assert!(b.is_valid());
-        assert_eq!(bool::from(b), false);
+        assert!(!bool::from(b));
         assert!(!b.get());
 
         b.set(true);
         assert!(b.is_valid());
-        assert_eq!(bool::from(b), true);
+        assert!(bool::from(b));
         assert!(b.get());
 
         let t = PodBool::TRUE;
@@ -492,7 +488,7 @@ mod tests {
 
         // Non-zero is true by From<PodBool> semantics
         let weird = PodBool { data: 255 };
-        assert_eq!(bool::from(weird), true);
+        assert!(bool::from(weird));
         // But validity check flags it
         assert!(!weird.is_valid());
     }

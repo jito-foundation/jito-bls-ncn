@@ -44,6 +44,12 @@ impl Discriminator for ReallocRollingSnapshotIxData {
     const DISCRIMINATOR: u8 = JitoBlsNCNInstructions::ReallocRollingSnapshot as u8;
 }
 
+impl Default for ReallocRollingSnapshotIxData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ReallocRollingSnapshotIxData {
     pub fn new() -> Self {
         Self {
@@ -51,8 +57,10 @@ impl ReallocRollingSnapshotIxData {
         }
     }
 
+    /// # Safety
+    /// Caller must ensure everything is 1 byte aligned
     pub unsafe fn to_bytes(&self) -> &[u8] {
-        unsafe { crate::utils::to_bytes::<Self>(&self) }
+        unsafe { crate::utils::to_bytes::<Self>(self) }
     }
 }
 
@@ -77,6 +85,12 @@ impl Discriminator for VoteIxData {
     const DISCRIMINATOR: u8 = JitoBlsNCNInstructions::Vote as u8;
 }
 
+impl Default for VoteIxData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl VoteIxData {
     pub fn new() -> Self {
         Self {
@@ -84,7 +98,9 @@ impl VoteIxData {
         }
     }
 
+    /// # Safety
+    /// Caller must ensure everything is 1 byte aligned
     pub unsafe fn to_bytes(&self) -> &[u8] {
-        unsafe { crate::utils::to_bytes::<Self>(&self) }
+        unsafe { crate::utils::to_bytes::<Self>(self) }
     }
 }

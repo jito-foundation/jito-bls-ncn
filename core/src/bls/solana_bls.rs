@@ -1033,7 +1033,7 @@ pub fn offchain_create_operators_bitmap(
     total_operators: usize,
     signing_indices: &[usize],
 ) -> Vec<u8> {
-    let bitmap_size = (total_operators + 7) / 8; // Round up
+    let bitmap_size = total_operators.div_ceil(8);
     let mut bitmap = vec![0u8; bitmap_size];
     for &index in signing_indices {
         if index < total_operators {
@@ -1066,6 +1066,7 @@ pub fn offchain_create_operators_bitmap(
 /// # Important
 /// Arrays must have same length and order must match:
 /// signatures[i] corresponds to pubkeys_g2[i] and signing_indices[i]
+#[allow(clippy::type_complexity)]
 pub fn offchain_prepare_vote_data(
     signatures: &[[u8; 64]],   // Uncompressed G1 signatures
     pubkeys_g2: &[[u8; 128]],  // Uncompressed G2 public keys
@@ -1189,11 +1190,11 @@ mod tests {
 
         println!(
             "Generated random private key 1: {}",
-            hex::encode(&private_key1)
+            hex::encode(private_key1)
         );
         println!(
             "Generated random private key 2: {}",
-            hex::encode(&private_key2)
+            hex::encode(private_key2)
         );
     }
 
@@ -1816,9 +1817,9 @@ mod tests {
 
         for i in 0..3 {
             g1_pubkeys[i] = offchain_g1_from_private_key(&private_keys[i])
-                .expect(&format!("Failed to derive G1 pubkey {}", i));
+                .unwrap_or_else(|e| panic!("Failed to derive G1 pubkey {} {}", i, e));
             g2_pubkeys[i] = offchain_g2_from_private_key(&private_keys[i])
-                .expect(&format!("Failed to derive G2 pubkey {}", i));
+                .unwrap_or_else(|e| panic!("Failed to derive G2 pubkey {} {}", i, e));
         }
 
         // ====================================================================
@@ -1827,14 +1828,14 @@ mod tests {
 
         // In the real program, this would be computed during snapshot creation
         let mut total_aggregated_g1 = g1_pubkeys[0];
-        for i in 1..3 {
-            total_aggregated_g1 = add_g1(&total_aggregated_g1, &g1_pubkeys[i])
-                .expect(&format!("Failed to add G1 pubkey {}", i));
+        for (i, item) in g1_pubkeys.iter().enumerate().skip(1) {
+            total_aggregated_g1 = add_g1(&total_aggregated_g1, item)
+                .unwrap_or_else(|e| panic!("Failed to add G1 pubkey {} {}", i, e));
         }
 
         println!(
             "Total aggregated G1 (all 3 operators): {}",
-            hex::encode(&total_aggregated_g1)
+            hex::encode(total_aggregated_g1)
         );
 
         // ====================================================================
@@ -1868,9 +1869,9 @@ mod tests {
         println!("\nOff-chain aggregation complete:");
         println!(
             "  Aggregated signature: {}",
-            hex::encode(&aggregated_signature)
+            hex::encode(aggregated_signature)
         );
-        println!("  Aggregated G2: {}", hex::encode(&aggregated_g2));
+        println!("  Aggregated G2: {}", hex::encode(aggregated_g2));
         println!("  Bitmap: 0b{:08b} (operators 0 and 2 set)", bitmap[0]);
 
         // Verify bitmap is correct
@@ -1893,11 +1894,11 @@ mod tests {
         println!("\nOn-chain computation:");
         println!(
             "  Non-signer G1 (operator 1): {}",
-            hex::encode(&non_signers_g1)
+            hex::encode(non_signers_g1)
         );
         println!(
             "  Signers' aggregated G1: {}",
-            hex::encode(&signers_aggregated_g1)
+            hex::encode(signers_aggregated_g1)
         );
 
         // Verify that signers_aggregated_g1 = g1_pubkeys[0] + g1_pubkeys[2]

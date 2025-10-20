@@ -20,16 +20,20 @@ ark-ff = "0.5.0"
 ark-serialize = "0.5.0"
 bn254 = { git = "https://github.com/BreadchainCoop/bn254.git" }
 bytes = "1.10.1"
+clap = { version = "4.5", features = ["derive", "env"] }
 commonware-codec = "0.0.56"
 commonware-cryptography = "0.0.56"
 commonware-utils = "0.0.56"
+dotenv = "0.15.0"
 hex = "0.4.3"
 jito-bls-ncn-sdk = { path = "./sdk" }
 jito-restaking-core = { package = "jito-restaking-core", git = "https://github.com/jito-foundation/restaking", branch = "master" }
 jito-vault-core = { package = "jito-vault-core", git = "https://github.com/jito-foundation/restaking", branch = "master" }
 serde_json = "1.0.145"
+solana-account-decoder = "3.0.0"
 solana-account-info = "3.0.0"
 solana-bn254 = "3.0.0"
+solana-client = "3.0.0"
 solana-commitment-config = "3.0.0"
 solana-instruction = "3.0.0"
 solana-keypair = "3.0.0"

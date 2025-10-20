@@ -1,10 +1,10 @@
 #[cfg(test)]
 mod tests {
+    use crate::fixtures::fixture::TestBuilder;
     use anyhow::Result;
-    use jito_bls_ncn_sdk::{vote_ix};
+    use jito_bls_ncn_sdk::vote_ix;
     use solana_program_test::tokio;
     use solana_signer::Signer;
-    use crate::fixtures::fixture::TestBuilder;
 
     #[tokio::test]
     async fn test_vote_ok() -> Result<()> {

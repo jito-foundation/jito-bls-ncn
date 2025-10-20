@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
+use hex;
 use jito_bls_ncn_sdk::id;
 use solana_commitment_config::CommitmentLevel;
 use solana_keypair::Keypair;
@@ -13,7 +14,6 @@ use solana_transaction::{Instruction, Transaction};
 use spl_associated_token_account_interface::{
     address::get_associated_token_address, instruction::create_associated_token_account_idempotent,
 };
-use hex;
 use spl_token_interface::{
     instruction::{initialize_mint2, transfer_checked},
     state::{Account, Mint},
@@ -89,16 +89,16 @@ impl TestBuilder {
         let mint_account = Mint::unpack(&mint_account_raw.data)?;
 
         let source_token_account = get_associated_token_address(&source.pubkey(), mint);
-        let destination_token_account = get_associated_token_address(&destination, mint);
+        let destination_token_account = get_associated_token_address(destination, mint);
 
         self.context
             .banks_client
             .process_transaction_with_preflight_and_commitment(
                 Transaction::new_signed_with_payer(
                     &[transfer_checked(
-                        &token_program_id,
+                        token_program_id,
                         &source_token_account,
-                        &mint,
+                        mint,
                         &destination_token_account,
                         &source.pubkey(),
                         &[],
@@ -107,7 +107,7 @@ impl TestBuilder {
                     )
                     .unwrap()],
                     Some(&self.context.payer.pubkey()),
-                    &[&source, &self.context.payer],
+                    &[source, &self.context.payer],
                     blockhash,
                 ),
                 CommitmentLevel::Processed,
@@ -205,7 +205,7 @@ impl TestBuilder {
 
         let create_tx = create_account(
             &self.context.payer,
-            &mint,
+            mint,
             blockhash,
             min_rent,
             Mint::LEN as u64,
@@ -291,7 +291,8 @@ impl TestBuilder {
         signers: &[&dyn Signer],
     ) -> Result<()> {
         // Fetch latest blockhash
-        let recent_blockhash = self.context
+        let recent_blockhash = self
+            .context
             .banks_client
             .get_latest_blockhash()
             .await
@@ -318,10 +319,22 @@ impl TestBuilder {
         // Message info
         let msg = &tx.message;
         println!("\n[Message]");
-        println!("  Recent blockhash: {} (just fetched)", msg.recent_blockhash);
-        println!("  Num required signatures: {}", msg.header.num_required_signatures);
-        println!("  Num readonly signed accounts: {}", msg.header.num_readonly_signed_accounts);
-        println!("  Num readonly unsigned accounts: {}", msg.header.num_readonly_unsigned_accounts);
+        println!(
+            "  Recent blockhash: {} (just fetched)",
+            msg.recent_blockhash
+        );
+        println!(
+            "  Num required signatures: {}",
+            msg.header.num_required_signatures
+        );
+        println!(
+            "  Num readonly signed accounts: {}",
+            msg.header.num_readonly_signed_accounts
+        );
+        println!(
+            "  Num readonly unsigned accounts: {}",
+            msg.header.num_readonly_unsigned_accounts
+        );
 
         // Account keys
         println!("\n[Account Keys] ({} total)", msg.account_keys.len());
@@ -333,9 +346,10 @@ impl TestBuilder {
         println!("\n[Instructions] ({} total)", msg.instructions.len());
         for (i, ix) in msg.instructions.iter().enumerate() {
             println!("\n  Instruction #{}:", i);
-            println!("    Program: {} (account_keys[{}])",
-                     msg.account_keys[ix.program_id_index as usize],
-                     ix.program_id_index);
+            println!(
+                "    Program: {} (account_keys[{}])",
+                msg.account_keys[ix.program_id_index as usize], ix.program_id_index
+            );
             println!("    Account indices: {:?}", ix.accounts);
             println!("    Data: {} bytes", ix.data.len());
             println!("    Data (hex): {}", hex::encode(&ix.data));
@@ -346,7 +360,8 @@ impl TestBuilder {
         println!("{}\n", "=".repeat(60));
 
         // Use simulate instead to get logs
-        let simulation = self.context
+        let simulation = self
+            .context
             .banks_client
             .simulate_transaction(tx.clone())
             .await
@@ -366,12 +381,10 @@ impl TestBuilder {
         println!("{}\n", "=".repeat(60));
 
         // Now actually process it
-        let result = self.context
+        let result = self
+            .context
             .banks_client
-            .process_transaction_with_preflight_and_commitment(
-                tx,
-                CommitmentLevel::Processed,
-            )
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Processed)
             .await;
 
         match result {

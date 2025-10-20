@@ -1,20 +1,12 @@
-use ark_bn254::{Fq, Fq2, Fr, G1Projective, G2Affine, G2Projective};
-use ark_ec::{AffineRepr, CurveGroup};
-use ark_ff::{BigInteger, Field, One, PrimeField};
+use ark_bn254::{Fq, Fq2, G1Projective, G2Affine, G2Projective};
+use ark_ff::{One, PrimeField};
 use serde_json;
-use solana_bn254::{
-    compression::prelude::{
-        alt_bn128_g1_compress, alt_bn128_g1_decompress, alt_bn128_g2_compress,
-        alt_bn128_g2_decompress,
-    },
-    prelude::*,
+use solana_bn254::compression::prelude::{
+    alt_bn128_g1_compress, alt_bn128_g1_decompress, alt_bn128_g2_compress, alt_bn128_g2_decompress,
 };
 use solana_keypair::Keypair;
 
-use crate::bls::solana_bls::{
-    aggregate_signatures, offchain_g1_from_private_key, offchain_g2_from_private_key,
-    offchain_parse_g2_point, solana_sign,
-};
+use crate::bls::solana_bls::{offchain_g1_from_private_key, offchain_g2_from_private_key};
 
 pub type SolanaBN254Signature = SolanaBN254G1;
 #[derive(Clone, Copy)]
@@ -46,7 +38,7 @@ impl SolanaBN254G1 {
         Self::new(&decompressed)
     }
 
-    pub fn from_string(string: &str) -> Result<Self, String> {
+    pub fn from_hex(string: &str) -> Result<Self, String> {
         let bytes =
             hex::decode(string).map_err(|e| format!("Could not decode hex string: {:?}", e))?;
         let bytes = bytes.try_into().map_err(|_| "Invalid length".to_string())?;
@@ -54,7 +46,7 @@ impl SolanaBN254G1 {
         Self::new(&bytes)
     }
 
-    pub fn from_compressed_string(string: &str) -> Result<Self, String> {
+    pub fn from_compressed_hex(string: &str) -> Result<Self, String> {
         let bytes =
             hex::decode(string).map_err(|e| format!("Could not decode hex string: {:?}", e))?;
         let bytes = bytes.try_into().map_err(|_| "Invalid length".to_string())?;
@@ -62,11 +54,11 @@ impl SolanaBN254G1 {
         Self::from_compressed(&bytes)
     }
 
-    pub fn to_string(&self) -> String {
+    pub fn to_hex(&self) -> String {
         hex::encode(self.raw)
     }
 
-    pub fn to_compressed_string(&self) -> String {
+    pub fn to_compressed_hex(&self) -> String {
         hex::encode(self.compressed)
     }
 }
@@ -113,7 +105,7 @@ impl SolanaBN254G2 {
         Self::new(&decompressed)
     }
 
-    pub fn from_string(string: &str) -> Result<Self, String> {
+    pub fn from_hex(string: &str) -> Result<Self, String> {
         let bytes =
             hex::decode(string).map_err(|e| format!("Could not decode hex string: {:?}", e))?;
         let bytes = bytes.try_into().map_err(|_| "Invalid length".to_string())?;
@@ -121,7 +113,7 @@ impl SolanaBN254G2 {
         Self::new(&bytes)
     }
 
-    pub fn from_compressed_string(string: &str) -> Result<Self, String> {
+    pub fn from_compressed_hex(string: &str) -> Result<Self, String> {
         let bytes =
             hex::decode(string).map_err(|e| format!("Could not decode hex string: {:?}", e))?;
         let bytes = bytes.try_into().map_err(|_| "Invalid length".to_string())?;
@@ -129,11 +121,11 @@ impl SolanaBN254G2 {
         Self::from_compressed(&bytes)
     }
 
-    pub fn to_string(&self) -> String {
+    pub fn to_hex(&self) -> String {
         hex::encode(self.raw)
     }
 
-    pub fn to_compressed_string(&self) -> String {
+    pub fn to_compressed_hex(&self) -> String {
         hex::encode(self.compressed)
     }
 }
@@ -191,12 +183,12 @@ impl SolanaBN254PublicKey {
         let g1_raw_hex = json_obj["g1"]["raw"]
             .as_str()
             .ok_or("Missing or invalid g1.raw field")?;
-        let g1 = SolanaBN254G1::from_string(g1_raw_hex)?;
+        let g1 = SolanaBN254G1::from_hex(g1_raw_hex)?;
 
         let g2_raw_hex = json_obj["g2"]["raw"]
             .as_str()
             .ok_or("Missing or invalid g2.raw field")?;
-        let g2 = SolanaBN254G2::from_string(g2_raw_hex)?;
+        let g2 = SolanaBN254G2::from_hex(g2_raw_hex)?;
 
         Ok(Self::new(g1, g2))
     }
@@ -210,10 +202,10 @@ pub struct SolanaBN254Keypair {
 
 impl SolanaBN254Keypair {
     pub fn new(private_key: &[u8; 32]) -> Result<Self, String> {
-        let g1_bytes = offchain_g1_from_private_key(&private_key)?;
+        let g1_bytes = offchain_g1_from_private_key(private_key)?;
         let g1 = SolanaBN254G1::new(&g1_bytes)?;
 
-        let g2_bytes = offchain_g2_from_private_key(&private_key)?;
+        let g2_bytes = offchain_g2_from_private_key(private_key)?;
         let g2 = SolanaBN254G2::new(&g2_bytes)?;
 
         let public_key = SolanaBN254PublicKey::new(g1, g2);
@@ -226,16 +218,16 @@ impl SolanaBN254Keypair {
 
     pub fn new_from_keypair(keypair: &Keypair) -> Result<Self, String> {
         let private_key = keypair.secret_bytes();
-        Self::new(&private_key)
+        Self::new(private_key)
     }
 
     pub fn new_unique() -> Result<Self, String> {
         let keypair = Keypair::new();
         let private_key = keypair.secret_bytes();
-        Self::new(&private_key)
+        Self::new(private_key)
     }
 
-    pub fn from_string(private_key: &str) -> Result<Self, String> {
+    pub fn from_hex(private_key: &str) -> Result<Self, String> {
         let private_key = hex::decode(private_key).map_err(|_| "Invalid private key")?;
         let private_key = private_key
             .try_into()
@@ -243,7 +235,7 @@ impl SolanaBN254Keypair {
         Self::new(&private_key)
     }
 
-    pub fn to_string(&self) -> String {
+    pub fn to_hex(&self) -> String {
         hex::encode(self.private_key)
     }
 
@@ -296,7 +288,7 @@ impl SolanaBN254Keypair {
             .as_str()
             .ok_or("Missing or invalid private_key field")?;
 
-        Self::from_string(private_key_hex)
+        Self::from_hex(private_key_hex)
     }
 
     /// Write keypair to JSON file
@@ -315,8 +307,11 @@ impl SolanaBN254Keypair {
 
 #[cfg(test)]
 mod tests {
+    use crate::bls::solana_bls::{aggregate_signatures, offchain_parse_g2_point, solana_sign};
+
     use super::*;
     use ark_bn254::{Fr, G1Affine};
+    use ark_ff::BigInteger;
     use ark_ff::PrimeField;
     use ark_serialize::CanonicalDeserialize;
     use ark_serialize::CanonicalSerialize;
@@ -334,6 +329,8 @@ mod tests {
     #[cfg(test)]
     fn generate_random_bls_private_key() -> [u8; 32] {
         // Generate a random Solana keypair
+
+        use ark_ff::BigInteger;
         let keypair = Keypair::new();
 
         // Get the secret key bytes (first 32 bytes of the keypair)

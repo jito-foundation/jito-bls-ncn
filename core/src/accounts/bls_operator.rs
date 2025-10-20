@@ -57,9 +57,9 @@ impl Initialized for BlsOperator {
 impl BlsOperator {
     pub const SEED: &'static [u8] = b"bls_operator";
 
+    #[allow(clippy::too_many_arguments)]
     pub fn initialize(
         &mut self,
-        ncn: &Pubkey,
         operator: &Pubkey,
         g1: &[u8; 64],
         g2: &[u8; 128],

@@ -254,8 +254,8 @@ impl RollingSnapshot {
         self.check_operator_index(operator, index)?;
 
         if let Some(mut updated_operator) = self.operators[index].copied() {
-            let old_g1 = updated_operator.g1.clone();
-            updated_operator.g1 = g1.clone();
+            let old_g1 = updated_operator.g1;
+            updated_operator.g1 = *g1;
 
             self.operators[index] = PodOption::some(updated_operator);
 

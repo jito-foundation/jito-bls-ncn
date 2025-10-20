@@ -15,6 +15,8 @@ pub trait Initialized {
     fn is_initialized(&self) -> bool;
 }
 
+/// # Safety
+/// Caller must ensure everything is 1 byte aligned
 #[inline(always)]
 pub unsafe fn load_account<T: DataLen + Initialized>(bytes: &[u8]) -> Result<&T, ProgramError> {
     load_account_unchecked::<T>(bytes).and_then(|account| {
@@ -26,6 +28,8 @@ pub unsafe fn load_account<T: DataLen + Initialized>(bytes: &[u8]) -> Result<&T,
     })
 }
 
+/// # Safety
+/// Caller must ensure everything is 1 byte aligned
 #[inline(always)]
 pub unsafe fn load_account_unchecked<T: DataLen>(bytes: &[u8]) -> Result<&T, ProgramError> {
     if bytes.len() != T::LEN {
@@ -34,6 +38,8 @@ pub unsafe fn load_account_unchecked<T: DataLen>(bytes: &[u8]) -> Result<&T, Pro
     Ok(&*(bytes.as_ptr() as *const T))
 }
 
+/// # Safety
+/// Caller must ensure everything is 1 byte aligned
 #[inline(always)]
 pub unsafe fn load_account_mut<T: DataLen + Initialized>(
     bytes: &mut [u8],
@@ -47,6 +53,8 @@ pub unsafe fn load_account_mut<T: DataLen + Initialized>(
     })
 }
 
+/// # Safety
+/// Caller must ensure everything is 1 byte aligned
 #[inline(always)]
 pub unsafe fn load_account_mut_unchecked<T: DataLen>(
     bytes: &mut [u8],
@@ -57,6 +65,8 @@ pub unsafe fn load_account_mut_unchecked<T: DataLen>(
     Ok(&mut *(bytes.as_mut_ptr() as *mut T))
 }
 
+/// # Safety
+/// Caller must ensure everything is 1 byte aligned
 #[inline(always)]
 pub unsafe fn load_ix_data<T: DataLen>(bytes: &[u8]) -> Result<&T, ProgramError> {
     if bytes.len() != T::LEN {
@@ -65,10 +75,16 @@ pub unsafe fn load_ix_data<T: DataLen>(bytes: &[u8]) -> Result<&T, ProgramError>
     Ok(&*(bytes.as_ptr() as *const T))
 }
 
+/// # Safety
+/// Caller must ensure everything is 1 byte aligned
+#[inline(always)]
 pub unsafe fn to_bytes<T: DataLen>(data: &T) -> &[u8] {
     core::slice::from_raw_parts(data as *const T as *const u8, T::LEN)
 }
 
+/// # Safety
+/// Caller must ensure everything is 1 byte aligned
+#[inline(always)]
 pub unsafe fn to_mut_bytes<T: DataLen>(data: &mut T) -> &mut [u8] {
     core::slice::from_raw_parts_mut(data as *mut T as *mut u8, T::LEN)
 }
