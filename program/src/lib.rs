@@ -3,7 +3,7 @@ use solana_program::declare_id;
 pub mod realloc_rolling_snapshot;
 pub mod vote;
 
-declare_id!("3fKQSi6VzzDUJSmeksS8qK6RB3Gs3UoZWtsQD3xagy45");
+declare_id!("7mk2JdyFKPoPDxkagDuuYSkwhXApeeDUnwvhVdgDoTQ6");
 
 #[cfg(not(feature = "no-entrypoint"))]
 mod entrypoint {

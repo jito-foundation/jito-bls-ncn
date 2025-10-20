@@ -13,6 +13,13 @@ readme = { workspace = true }
 anyhow = { workspace = true }
 hex = { workspace = true }
 jito-bls-ncn-sdk = { workspace = true }
+jito-bytemuck = { workspace = true }
+jito-restaking-core = { workspace = true }
+jito-restaking-sdk = { workspace = true }
+jito-vault-core = { workspace = true }
+jito-vault-sdk = { workspace = true }
+solana-account-decoder = { workspace = true }
+solana-client = { workspace = true }
 solana-commitment-config = { workspace = true }
 solana-keypair = { workspace = true }
 solana-program = { workspace = true }

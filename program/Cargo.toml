@@ -26,7 +26,7 @@ devnet = []
 localhost = []
 
 [dependencies]
-jito-bls-ncn-core = { path = "../core" }
+jito-bls-ncn-core = { path = "../core", features = [] }
 solana-account-info = { workspace = true }
 solana-msg = { workspace = true }
 solana-program = { workspace = true }
@@ -34,5 +34,3 @@ solana-program-entrypoint = { workspace = true }
 solana-program-error = { workspace = true }
 solana-pubkey = { workspace = true }
 solana-security-txt = { workspace = true }
-
-[dev-dependencies]
