@@ -84,7 +84,7 @@
 use ark_bn254::{Fq, Fq2, Fr, G1Projective, G2Affine};
 use ark_ec::{AffineRepr, CurveGroup};
 use ark_ff::{BigInteger, Field, One, PrimeField};
-use solana_bn254::prelude::*;
+use solana_bn254::prelude::{alt_bn128_g1_addition_be, alt_bn128_g1_multiplication_be, alt_bn128_pairing_be};
 
 // ----------------------------------------------------------------------------
 //                       CONSTANTS
@@ -429,7 +429,7 @@ pub fn add_g1(p1: &[u8; 64], p2: &[u8; 64]) -> Result<[u8; 64], String> {
     input.extend_from_slice(p1);
     input.extend_from_slice(p2);
 
-    let result = alt_bn128_addition(&input).map_err(|e| format!("G1 addition failed: {:?}", e))?;
+    let result = alt_bn128_g1_addition_be(&input).map_err(|e| format!("G1 addition failed: {:?}", e))?;
 
     let mut output = [0u8; 64];
     output.copy_from_slice(&result);
@@ -484,7 +484,7 @@ pub fn mult_g1(point: &[u8; 64], scalar: &[u8; 32]) -> Result<[u8; 64], String> 
     input.extend_from_slice(point);
     input.extend_from_slice(scalar);
 
-    let result = alt_bn128_multiplication(&input)
+    let result = alt_bn128_g1_multiplication_be(&input)
         .map_err(|e| format!("G1 multiplication failed: {:?}", e))?;
 
     let mut output = [0u8; 64];
@@ -572,7 +572,7 @@ pub fn solana_verify_aggregated_signature(
 
     // Execute pairing check
     let result =
-        alt_bn128_pairing(&pairing_input).map_err(|e| format!("Pairing failed: {:?}", e))?;
+        alt_bn128_pairing_be(&pairing_input).map_err(|e| format!("Pairing failed: {:?}", e))?;
 
     // Check if result equals 1 (successful verification)
     Ok(result == get_bn128_pairing_success_result())
@@ -680,7 +680,7 @@ pub fn solana_verify_signature_with_g2(
 
     // Execute single pairing check
     let result =
-        alt_bn128_pairing(&pairing_input).map_err(|e| format!("Pairing failed: {:?}", e))?;
+        alt_bn128_pairing_be(&pairing_input).map_err(|e| format!("Pairing failed: {:?}", e))?;
 
     // Check if result equals 1 (successful verification)
     Ok(result == get_bn128_pairing_success_result())
@@ -736,7 +736,7 @@ pub fn verify_g1_g2(g1: &[u8; 64], g2: &[u8; 128]) -> Result<bool, String> {
     pairing_input[256..].copy_from_slice(&get_g2_minus_one());
 
     let result =
-        alt_bn128_pairing(&pairing_input).map_err(|e| format!("Pairing failed: {:?}", e))?;
+        alt_bn128_pairing_be(&pairing_input).map_err(|e| format!("Pairing failed: {:?}", e))?;
 
     // Check if result equals 1 (successful verification)
     Ok(result == get_bn128_pairing_success_result())

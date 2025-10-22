@@ -1,6 +1,6 @@
 use crate::{
     errors::BlsNcnProgramError,
-    utils::{DataLen, Discriminator},
+    utils::{JitoDataLen, JitoDiscriminator},
 };
 
 #[repr(u8)]
@@ -36,11 +36,11 @@ pub struct ReallocRollingSnapshotIxData {
     pub discriminator: u8,
 }
 
-impl DataLen for ReallocRollingSnapshotIxData {
+impl JitoDataLen for ReallocRollingSnapshotIxData {
     const LEN: usize = size_of::<Self>();
 }
 
-impl Discriminator for ReallocRollingSnapshotIxData {
+impl JitoDiscriminator for ReallocRollingSnapshotIxData {
     const DISCRIMINATOR: u8 = JitoBlsNCNInstructions::ReallocRollingSnapshot as u8;
 }
 
@@ -77,11 +77,11 @@ pub struct VoteIxData {
     pub discriminator: u8,
 }
 
-impl DataLen for VoteIxData {
+impl JitoDataLen for VoteIxData {
     const LEN: usize = size_of::<Self>();
 }
 
-impl Discriminator for VoteIxData {
+impl JitoDiscriminator for VoteIxData {
     const DISCRIMINATOR: u8 = JitoBlsNCNInstructions::Vote as u8;
 }
 

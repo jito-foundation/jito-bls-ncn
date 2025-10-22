@@ -28,4 +28,4 @@ jobs:
           version: 1.0.9
 
       - name: Run CI checks
-        run: ./ci.sh github
+        run: ./run.sh github

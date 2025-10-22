@@ -1,5 +1,5 @@
 [workspace]
-members = ["cli", "core", "integration_tests", "program", "sdk"]
+members = ["cli", "clients", "core", "integration_tests", "program", "sdk"]
 
 resolver = "2"
 
@@ -26,15 +26,22 @@ commonware-cryptography = "0.0.56"
 commonware-utils = "0.0.56"
 dotenv = "0.15.0"
 hex = "0.4.3"
+jito-bls-ncn-clients = { path = "./clients" }
 jito-bls-ncn-sdk = { path = "./sdk" }
-jito-restaking-core = { package = "jito-restaking-core", git = "https://github.com/jito-foundation/restaking", branch = "master" }
-jito-vault-core = { package = "jito-vault-core", git = "https://github.com/jito-foundation/restaking", branch = "master" }
+jito-bls-ncn-core = { path = "./core" }
+# jito-restaking-core = { package = "jito-restaking-core", git = "https://github.com/jito-foundation/restaking", branch = "master" }
+# jito-restaking-sdk = { package = "jito-restaking-sdk", git = "https://github.com/jito-foundation/restaking", branch = "master" }
+# jito-vault-core = { package = "jito-vault-core", git = "https://github.com/jito-foundation/restaking", branch = "master" }
+# jito-vault-sdk = { package = "jito-vault-sdk", git = "https://github.com/jito-foundation/restaking", branch = "master" }
+log = "0.4.28"
 serde_json = "1.0.145"
+solana-account = "3.0.0"
 solana-account-decoder = "3.0.0"
 solana-account-info = "3.0.0"
 solana-bn254 = "3.0.0"
 solana-client = "3.0.0"
 solana-commitment-config = "3.0.0"
+solana-epoch-info = "3.0.0"
 solana-instruction = "3.0.0"
 solana-keypair = "3.0.0"
 solana-msg = "3.0.0"
@@ -45,6 +52,7 @@ solana-program-test = "3.0.0"
 solana-pubkey = "3.0.0"
 solana-security-txt = "1.1.1"
 solana-sha256-hasher = "3.0.0"
+solana-signature = "3.0.0"
 solana-signer = "3.0.0"
 solana-system-interface = "2.0.0"
 solana-system-transaction = "3.0.0"
@@ -53,3 +61,5 @@ spl-associated-token-account-interface = "2.0.0"
 # jito-bytemuck = { package = "jito-bytemuck", git = "https://github.com/jito-foundation/restaking", branch = "master" }
 # bytemuck = { version = "1.16.3", features = ["derive", "min_const_generics"] }
 spl-token-interface = "2.0.0"
+
+# cargo update --precise 1.6.0 -p base64ct@1.8.0

@@ -3,22 +3,24 @@ use solana_msg::msg;
 use solana_program_error::ProgramError;
 use solana_pubkey::Pubkey;
 
-pub trait Discriminator {
+pub trait JitoDiscriminator {
     const DISCRIMINATOR: u8;
 }
 
-pub trait DataLen {
+pub trait JitoDataLen {
     const LEN: usize;
 }
 
-pub trait Initialized {
+pub trait JitoInitialized {
     fn is_initialized(&self) -> bool;
 }
 
 /// # Safety
 /// Caller must ensure everything is 1 byte aligned
 #[inline(always)]
-pub unsafe fn load_account<T: DataLen + Initialized>(bytes: &[u8]) -> Result<&T, ProgramError> {
+pub unsafe fn load_account<T: JitoDataLen + JitoInitialized>(
+    bytes: &[u8],
+) -> Result<&T, ProgramError> {
     load_account_unchecked::<T>(bytes).and_then(|account| {
         if account.is_initialized() {
             Ok(account)
@@ -31,7 +33,7 @@ pub unsafe fn load_account<T: DataLen + Initialized>(bytes: &[u8]) -> Result<&T,
 /// # Safety
 /// Caller must ensure everything is 1 byte aligned
 #[inline(always)]
-pub unsafe fn load_account_unchecked<T: DataLen>(bytes: &[u8]) -> Result<&T, ProgramError> {
+pub unsafe fn load_account_unchecked<T: JitoDataLen>(bytes: &[u8]) -> Result<&T, ProgramError> {
     if bytes.len() != T::LEN {
         return Err(ProgramError::InvalidAccountData);
     }
@@ -41,7 +43,7 @@ pub unsafe fn load_account_unchecked<T: DataLen>(bytes: &[u8]) -> Result<&T, Pro
 /// # Safety
 /// Caller must ensure everything is 1 byte aligned
 #[inline(always)]
-pub unsafe fn load_account_mut<T: DataLen + Initialized>(
+pub unsafe fn load_account_mut<T: JitoDataLen + JitoInitialized>(
     bytes: &mut [u8],
 ) -> Result<&mut T, ProgramError> {
     load_account_mut_unchecked::<T>(bytes).and_then(|acc| {
@@ -56,7 +58,7 @@ pub unsafe fn load_account_mut<T: DataLen + Initialized>(
 /// # Safety
 /// Caller must ensure everything is 1 byte aligned
 #[inline(always)]
-pub unsafe fn load_account_mut_unchecked<T: DataLen>(
+pub unsafe fn load_account_mut_unchecked<T: JitoDataLen>(
     bytes: &mut [u8],
 ) -> Result<&mut T, ProgramError> {
     if bytes.len() != T::LEN {
@@ -68,7 +70,7 @@ pub unsafe fn load_account_mut_unchecked<T: DataLen>(
 /// # Safety
 /// Caller must ensure everything is 1 byte aligned
 #[inline(always)]
-pub unsafe fn load_ix_data<T: DataLen>(bytes: &[u8]) -> Result<&T, ProgramError> {
+pub unsafe fn load_ix_data<T: JitoDataLen>(bytes: &[u8]) -> Result<&T, ProgramError> {
     if bytes.len() != T::LEN {
         return Err(ProgramError::InvalidInstructionData);
     }
@@ -78,14 +80,14 @@ pub unsafe fn load_ix_data<T: DataLen>(bytes: &[u8]) -> Result<&T, ProgramError>
 /// # Safety
 /// Caller must ensure everything is 1 byte aligned
 #[inline(always)]
-pub unsafe fn to_bytes<T: DataLen>(data: &T) -> &[u8] {
+pub unsafe fn to_bytes<T: JitoDataLen>(data: &T) -> &[u8] {
     core::slice::from_raw_parts(data as *const T as *const u8, T::LEN)
 }
 
 /// # Safety
 /// Caller must ensure everything is 1 byte aligned
 #[inline(always)]
-pub unsafe fn to_mut_bytes<T: DataLen>(data: &mut T) -> &mut [u8] {
+pub unsafe fn to_mut_bytes<T: JitoDataLen>(data: &mut T) -> &mut [u8] {
     core::slice::from_raw_parts_mut(data as *mut T as *mut u8, T::LEN)
 }
 

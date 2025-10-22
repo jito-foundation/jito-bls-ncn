@@ -1,0 +1,121 @@
+use anyhow::{anyhow, Result};
+use log::error;
+use solana_account::Account;
+use solana_client::nonblocking::rpc_client::RpcClient;
+use solana_commitment_config::{CommitmentConfig, CommitmentLevel};
+use solana_epoch_info::EpochInfo;
+use solana_keypair::Keypair;
+use solana_pubkey::Pubkey;
+use solana_signature::Signature;
+use solana_transaction::{Hash, Transaction};
+
+use crate::jito_clients::{JitoClient, JitoClientType};
+
+// --------------------------- JITO SurfPool Client -------------------------------
+struct JitoSurfPoolClient {
+    client_type: JitoClientType,
+    rpc_client: RpcClient,
+    keypair: Keypair,
+}
+
+impl JitoSurfPoolClient {
+    pub fn new() -> Self {
+        JitoSurfPoolClient {
+            client_type: JitoClientType::Surfpool,
+            rpc_client: RpcClient::new("http://127.0.0.1:8899".to_string()),
+            keypair: Keypair::new(),
+        }
+    }
+
+    pub fn new_with_keypair(keypair: Keypair) -> Self {
+        JitoSurfPoolClient {
+            client_type: JitoClientType::Surfpool,
+            rpc_client: RpcClient::new("http://127.0.0.1:8899".to_string()),
+            keypair,
+        }
+    }
+}
+
+impl JitoClient for JitoSurfPoolClient {
+    fn get_client_type(&self) -> JitoClientType {
+        self.client_type.clone()
+    }
+
+    fn keypair(&self) -> &Keypair {
+        &self.keypair
+    }
+
+    async fn get_account(&self, address: &Pubkey) -> Result<Account> {
+        self.rpc_client
+            .get_account(address)
+            .await
+            .map_err(|e| anyhow!("Could not get account for {}: {}", address, e))
+    }
+
+    async fn get_balance(&self, address: &Pubkey) -> Result<u64> {
+        self.rpc_client
+            .get_balance(address)
+            .await
+            .map_err(|e| anyhow!("Could not get balance for {}: {}", address, e))
+    }
+
+    async fn get_recent_blockhash(&self) -> Result<Hash> {
+        let blockhash = self.rpc_client.get_latest_blockhash().await?;
+        self.rpc_client
+            .get_new_latest_blockhash(&blockhash)
+            .await
+            .map_err(|e| anyhow!("Could not get latest blockhash {}", e))
+    }
+
+    async fn send_and_confirm_transaction(
+        &self,
+        transaction: Transaction,
+        commitment: Option<CommitmentLevel>,
+    ) -> Result<Option<Signature>> {
+        let commitment_config = CommitmentConfig {
+            commitment: commitment.unwrap_or(CommitmentLevel::Confirmed),
+        };
+
+        self.rpc_client
+            .send_and_confirm_transaction_with_spinner_and_commitment(
+                &transaction,
+                commitment_config,
+            )
+            .await
+            .map(Some)
+            .map_err(|e| {
+                error!("Error sending transaction: {}", e);
+                anyhow!("Error sending transaction: {}", e)
+            })
+    }
+
+    async fn get_epoch_info(&self) -> Result<EpochInfo> {
+        self.rpc_client
+            .get_epoch_info()
+            .await
+            .map_err(|e| anyhow!("Error getting epoch info: {}", e))
+    }
+
+    async fn get_minimum_balance_for_rent_exemption(&self, data_len: usize) -> Result<u64> {
+        self.rpc_client
+            .get_minimum_balance_for_rent_exemption(data_len)
+            .await
+            .map_err(|e| anyhow!("Error getting minimum balance for rent exemption: {}", e))
+    }
+
+    async fn test_warp_to_slot(&mut self, slot: u64) -> Result<()> {
+        unimplemented!()
+    }
+
+    async fn test_warp_to_slot_incremental(&mut self, slots_to_increment: u64) -> Result<()> {
+        unimplemented!()
+    }
+
+    async fn test_set_account(&mut self, address: &Pubkey, account: &Account) -> Result<()> {
+        unimplemented!()
+    }
+
+    async fn test_airdrop(&mut self, address: &Pubkey, lamports: u64) -> Result<()> {
+        unimplemented!()
+    }
+}

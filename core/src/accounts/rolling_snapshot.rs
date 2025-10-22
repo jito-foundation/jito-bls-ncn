@@ -8,7 +8,7 @@ use crate::{
     bls::solana_bls::{add_g1, sub_g1},
     discriminators::Discriminators,
     pod::{PodOption, PodU16, PodU64},
-    utils::{check_account, DataLen, Discriminator, Initialized},
+    utils::{check_account, JitoDataLen, JitoDiscriminator, JitoInitialized},
 };
 
 /// Individual operator account that stores BLS keys for a specific operator in a specific NCN
@@ -32,15 +32,15 @@ pub struct RollingSnapshot {
     pub operators: [PodOption<OperatorEntry>; 256],
 }
 
-impl Discriminator for RollingSnapshot {
+impl JitoDiscriminator for RollingSnapshot {
     const DISCRIMINATOR: u8 = Discriminators::RollingSnapshot as u8;
 }
 
-impl DataLen for RollingSnapshot {
+impl JitoDataLen for RollingSnapshot {
     const LEN: usize = size_of::<Self>();
 }
 
-impl Initialized for RollingSnapshot {
+impl JitoInitialized for RollingSnapshot {
     fn is_initialized(&self) -> bool {
         if let Some(discriminator) = self.discriminator() {
             *discriminator == Self::DISCRIMINATOR

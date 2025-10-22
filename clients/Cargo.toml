@@ -1,6 +1,6 @@
 [package]
-name = "jito-bls-ncn-integration-tests"
-description = "Jito's BLS NCN Integration Tests"
+name = "jito-bls-ncn-clients"
+description = "Jito's BLS NCN Clients"
 version = { workspace = true }
 authors = { workspace = true }
 repository = { workspace = true }
@@ -9,10 +9,14 @@ license = { workspace = true }
 edition = { workspace = true }
 readme = { workspace = true }
 
+[features]
+default = []
+
 [dependencies]
 anyhow = { workspace = true }
 hex = { workspace = true }
 jito-bls-ncn-sdk = { workspace = true }
+jito-bls-ncn-core = { workspace = true }
 log = { workspace = true }
 solana-account = { workspace = true }
 solana-client = { workspace = true }

@@ -10,7 +10,7 @@ use crate::{
     bls::solana_bls::verify_g1_g2,
     discriminators::Discriminators,
     pod::{PodOption, PodU64},
-    utils::{check_account, DataLen, Discriminator, Initialized},
+    utils::{check_account, JitoDataLen, JitoDiscriminator, JitoInitialized},
 };
 
 /// Individual operator account that stores BLS keys for a specific operator in a specific NCN
@@ -36,15 +36,15 @@ pub struct BlsOperator {
     pub reserved: [u8; 256], // Reserved for future use, must be zeroed
 }
 
-impl Discriminator for BlsOperator {
+impl JitoDiscriminator for BlsOperator {
     const DISCRIMINATOR: u8 = Discriminators::BlsOperator as u8;
 }
 
-impl DataLen for BlsOperator {
+impl JitoDataLen for BlsOperator {
     const LEN: usize = size_of::<Self>();
 }
 
-impl Initialized for BlsOperator {
+impl JitoInitialized for BlsOperator {
     fn is_initialized(&self) -> bool {
         if let Some(discriminator) = self.discriminator() {
             *discriminator == Self::DISCRIMINATOR

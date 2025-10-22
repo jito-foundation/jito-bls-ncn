@@ -8,7 +8,7 @@ use solana_pubkey::Pubkey;
 use crate::{
     discriminators::Discriminators,
     pod::{PodOption, PodU64},
-    utils::{check_account, DataLen, Discriminator, Initialized},
+    utils::{check_account, JitoDataLen, JitoDiscriminator, JitoInitialized},
 };
 
 /// Individual operator account that stores BLS keys for a specific operator in a specific NCN
@@ -26,15 +26,15 @@ pub struct Consensus {
     pub reserved: [u8; 1024], // Reserved for future use, must be zeroed
 }
 
-impl Discriminator for Consensus {
+impl JitoDiscriminator for Consensus {
     const DISCRIMINATOR: u8 = Discriminators::Consensus as u8;
 }
 
-impl DataLen for Consensus {
+impl JitoDataLen for Consensus {
     const LEN: usize = size_of::<Self>();
 }
 
-impl Initialized for Consensus {
+impl JitoInitialized for Consensus {
     fn is_initialized(&self) -> bool {
         if let Some(discriminator) = self.discriminator() {
             *discriminator == Self::DISCRIMINATOR

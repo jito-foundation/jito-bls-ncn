@@ -3,7 +3,7 @@ use solana_program::declare_id;
 pub mod realloc_rolling_snapshot;
 pub mod vote;
 
-declare_id!("3fKQSi6VzzDUJSmeksS8qK6RB3Gs3UoZWtsQD3xagy45");
+declare_id!("BNCgEwPBWSQqd1kWkwJc5VYXkjxaB6c9bv64dR23syf9");
 
 #[cfg(not(feature = "no-entrypoint"))]
 mod entrypoint {
@@ -53,10 +53,6 @@ mod entrypoint {
             JitoBlsNCNInstructions::Vote => {
                 msg!("Voting");
                 process_vote(program_id, accounts, instruction_data)
-            }
-            _ => {
-                msg!("Invalid IX ");
-                Err(ProgramError::InvalidInstructionData)
             }
         }
     }

@@ -31,8 +31,8 @@ commonware-codec = { workspace = true, optional = true }
 commonware-cryptography = { workspace = true, optional = true }
 commonware-utils = { workspace = true, optional = true }
 hex = { workspace = true }
-jito-restaking-core = { workspace = true }
-jito-vault-core = { workspace = true }
+# jito-restaking-core = { workspace = true }
+# jito-vault-core = { workspace = true }
 serde_json = { workspace = true, optional = true }
 # jito-bytemuck = { workspace = true }
 # bytemuck = { workspace = true }
@@ -40,6 +40,7 @@ solana-account-info = { workspace = true }
 solana-bn254 = { workspace = true }
 solana-keypair = { workspace = true }
 solana-msg = { workspace = true }
+solana-instruction = { workspace = true }
 solana-program = { workspace = true }
 solana-program-error = { workspace = true }
 solana-pubkey = { workspace = true }
