@@ -22,6 +22,7 @@ solana-account = { workspace = true }
 solana-client = { workspace = true }
 solana-commitment-config = { workspace = true }
 solana-epoch-info = { workspace = true }
+serde_json = { workspace = true }
 solana-keypair = { workspace = true }
 solana-program = { workspace = true }
 solana-program-test = { workspace = true }

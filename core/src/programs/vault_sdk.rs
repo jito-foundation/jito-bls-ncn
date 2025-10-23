@@ -932,7 +932,7 @@ pub fn add_delegation_ix(
         AccountMeta::new_readonly(*admin, true),
     ];
 
-    let mut data = vec![24]; // Discriminator for AddDelegation
+    let mut data = vec![23]; // Discriminator for AddDelegation
     data.extend_from_slice(&amount.to_le_bytes());
 
     Instruction {
@@ -961,7 +961,7 @@ pub fn cooldown_delegation_ix(
         AccountMeta::new_readonly(*admin, true),
     ];
 
-    let mut data = vec![25]; // Discriminator for CooldownDelegation
+    let mut data = vec![24]; // Discriminator for CooldownDelegation
     data.extend_from_slice(&amount.to_le_bytes());
 
     Instruction {
@@ -991,7 +991,7 @@ pub fn update_vault_balance_ix(
         AccountMeta::new_readonly(*token_program, false),
     ];
 
-    let data = vec![26]; // Discriminator for UpdateVaultBalance
+    let data = vec![25]; // Discriminator for UpdateVaultBalance
 
     Instruction {
         program_id,
@@ -1019,7 +1019,7 @@ pub fn initialize_vault_update_state_tracker_ix(
         AccountMeta::new_readonly(system_program, false),
     ];
 
-    let mut data = vec![27]; // Discriminator for InitializeVaultUpdateStateTracker
+    let mut data = vec![26]; // Discriminator for InitializeVaultUpdateStateTracker
     data.push(withdrawal_allocation_method as u8);
 
     Instruction {
@@ -1047,7 +1047,7 @@ pub fn crank_vault_update_state_tracker_ix(
         AccountMeta::new(*vault_update_state_tracker, false),
     ];
 
-    let data = vec![28]; // Discriminator for CrankVaultUpdateStateTracker
+    let data = vec![27]; // Discriminator for CrankVaultUpdateStateTracker
 
     Instruction {
         program_id,
@@ -1073,7 +1073,7 @@ pub fn close_vault_update_state_tracker_ix(
         AccountMeta::new(*payer, true),
     ];
 
-    let mut data = vec![29]; // Discriminator for CloseVaultUpdateStateTracker
+    let mut data = vec![28]; // Discriminator for CloseVaultUpdateStateTracker
     data.extend_from_slice(&ncn_epoch.to_le_bytes());
 
     Instruction {
@@ -1108,7 +1108,7 @@ pub fn create_token_metadata_ix(
         AccountMeta::new_readonly(system_program, false),
     ];
 
-    let mut data = vec![30]; // Discriminator for CreateTokenMetadata
+    let mut data = vec![29]; // Discriminator for CreateTokenMetadata
 
     // Serialize string as length prefix + bytes
     let name_bytes = name.as_bytes();
@@ -1151,7 +1151,7 @@ pub fn update_token_metadata_ix(
         AccountMeta::new_readonly(*mpl_token_metadata_program, false),
     ];
 
-    let mut data = vec![31]; // Discriminator for UpdateTokenMetadata
+    let mut data = vec![30]; // Discriminator for UpdateTokenMetadata
 
     // Serialize string as length prefix + bytes
     let name_bytes = name.as_bytes();
@@ -1187,7 +1187,7 @@ pub fn set_config_admin_ix(
         AccountMeta::new_readonly(*new_admin, false),
     ];
 
-    let data = vec![32]; // Discriminator for SetConfigAdmin
+    let data = vec![31]; // Discriminator for SetConfigAdmin
 
     Instruction {
         program_id,
@@ -1211,7 +1211,7 @@ pub fn set_config_secondary_admin_ix(
         AccountMeta::new_readonly(*new_admin, false),
     ];
 
-    let mut data = vec![33]; // Discriminator for SetConfigSecondaryAdmin
+    let mut data = vec![32]; // Discriminator for SetConfigSecondaryAdmin
     data.push(role as u8);
 
     Instruction {

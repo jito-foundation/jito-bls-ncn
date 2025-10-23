@@ -1,7 +1,7 @@
-use jito_bls_ncn_core::{programs::{vault_core::{Config, Vault}, vault_sdk::{add_delegation_ix, burn_vault_address, config_address, initialize_config_ix, initialize_vault_ix, initialize_vault_ncn_ticket_ix, initialize_vault_operator_delegation_ix, mint_to_ix, vault_ncn_ticket_address, vault_operator_delegation_address, warmup_vault_ncn_ticket_ix}}, utils::load_account};
+use jito_bls_ncn_core::{programs::{vault_core::{Config, Vault}, vault_sdk::{add_delegation_ix, close_vault_update_state_tracker_ix, config_address, crank_vault_update_state_tracker_ix, initialize_config_ix, initialize_vault_ix, initialize_vault_ncn_ticket_ix, initialize_vault_operator_delegation_ix, initialize_vault_update_state_tracker_ix, mint_to_ix, update_vault_balance_ix, vault_ncn_ticket_address, vault_operator_delegation_address, vault_update_state_tracker_address, warmup_vault_ncn_ticket_ix, WithdrawalAllocationMethod}}, utils::load_account};
 use solana_keypair::Keypair;
 use solana_pubkey::Pubkey;
-use anyhow::{anyhow, Result};
+use anyhow::{Result};
 use solana_signer::Signer;
 use solana_transaction::Transaction;
 use spl_associated_token_account_interface::address::get_associated_token_address;
@@ -103,10 +103,10 @@ pub async fn test_initialize_config<T: JitoClient>(jito_client: &mut T) -> Resul
     pub async fn test_initialize_vault<T: JitoClient>(
         jito_client: &mut T,
     ) -> Result<VaultRoot> {
-        let base = Keypair::new();
         let admin = jito_client.keypair().insecure_clone();
+        let base = Keypair::new();
         let vrt_mint = Keypair::new();
-        let mint = Keypair::new();
+        let st_mint = Keypair::new();
 
         let initialize_token_amount = 1_000_000;
         let fee_bps = 100;
@@ -120,7 +120,7 @@ pub async fn test_initialize_config<T: JitoClient>(jito_client: &mut T) -> Resul
         jito_client.test_airdrop(&admin.pubkey(), 1_000_000_000).await?;
 
         // Create mint
-        create_mint(jito_client, &mint, decimals, None, None, None).await?;
+        create_mint(jito_client, &st_mint, decimals, None, None, None).await?;
 
         // Initialize vault
         initialize_vault(
@@ -129,7 +129,7 @@ pub async fn test_initialize_config<T: JitoClient>(jito_client: &mut T) -> Resul
             &vault,
             &burn_vault,
             &vrt_mint,
-            &mint,
+            &st_mint,
             &admin,
             &base,
             fee_bps,
@@ -140,13 +140,12 @@ pub async fn test_initialize_config<T: JitoClient>(jito_client: &mut T) -> Resul
         ).await?;
 
         // Create necessary ATAs
-        create_ata(jito_client, &vault, &mint.pubkey(), None).await?;
         create_ata(jito_client, &admin.pubkey(), &vrt_mint.pubkey(), None).await?;
 
         Ok(VaultRoot {
             vault_pubkey: vault,
             vault_admin: admin,
-            mint,
+            mint: st_mint,
         })
     }
 
@@ -175,7 +174,6 @@ pub async fn test_initialize_config<T: JitoClient>(jito_client: &mut T) -> Resul
         // Create ATAs first
         create_ata(jito_client, vault, &st_mint.pubkey(), None).await?;
         create_ata(jito_client, &vault_admin.pubkey(), &st_mint.pubkey(), None).await?;
-        create_ata(jito_client, &burn_vault_vrt_account, &vrt_mint.pubkey(), None).await?;
 
         // Mint initial tokens to admin
         mint_spl_to(jito_client, &st_mint.pubkey(), &vault_admin.pubkey(), initialize_token_amount, None).await?;
@@ -427,7 +425,7 @@ pub async fn test_initialize_config<T: JitoClient>(jito_client: &mut T) -> Resul
         let depositor_token_account = get_associated_token_address(&depositor.pubkey(), &vault.supported_mint);
         let vault_token_account = get_associated_token_address(&vault_root.vault_pubkey, &vault.supported_mint);
         let depositor_vrt_token_account = get_associated_token_address(&depositor.pubkey(), &vault.vrt_mint);
-        let vault_fee_token_account = get_associated_token_address(&vault.vault_fee_wallet, &vault.vrt_mint);
+        let vault_fee_token_account = get_associated_token_address(&vault.fee_wallet, &vault.vrt_mint);
 
         mint_to(
             jito_client,
@@ -477,6 +475,186 @@ pub async fn test_initialize_config<T: JitoClient>(jito_client: &mut T) -> Resul
             )],
             Some(&depositor.pubkey()),
             &[depositor],
+            blockhash,
+        );
+
+        jito_client.send_and_confirm_transaction(tx, None).await?;
+        Ok(())
+    }
+
+    pub async fn full_vault_update<T: JitoClient>(
+        jito_client: &mut T,
+        vault_pubkey: &Pubkey,
+        operators: &[Pubkey],
+    ) -> Result<()> {
+        let slot = jito_client.get_epoch_info().await?.absolute_slot;
+
+        let config = get_config(jito_client).await?;
+        let epoch_length: u64 = config.epoch_length.into();
+        let ncn_epoch: u64 = slot / epoch_length;
+
+        let is_update_needed = get_vault_is_update_needed(jito_client, vault_pubkey, slot).await?;
+        if !is_update_needed {
+            return Ok(());
+        }
+
+        let vault_update_state_tracker = vault_update_state_tracker_address(
+            vault_pubkey,
+            ncn_epoch,
+        ).0;
+
+        initialize_vault_update_state_tracker(
+            jito_client,
+            vault_pubkey,
+            &vault_update_state_tracker,
+        ).await?;
+
+        for i in 0..operators.len() {
+            let operator_index = (i + ncn_epoch as usize) % operators.len();
+            let operator = &operators[operator_index];
+            let (vault_operator_delegation, _) = vault_operator_delegation_address(vault_pubkey, operator);
+
+            crank_vault_update_state_tracker(
+                jito_client,
+                vault_pubkey,
+                operator,
+                &vault_operator_delegation,
+                &vault_update_state_tracker,
+            ).await?;
+        }
+
+        close_vault_update_state_tracker(
+            jito_client,
+            vault_pubkey,
+            &vault_update_state_tracker,
+            ncn_epoch,
+        ).await?;
+
+        update_vault_balance(jito_client, vault_pubkey).await?;
+
+        Ok(())
+    }
+
+    pub async fn do_crank_vault_update_state_tracker<T: JitoClient>(
+        jito_client: &mut T,
+        vault: &Pubkey,
+        operator: &Pubkey,
+    ) -> Result<()> {
+        let slot = jito_client.get_epoch_info().await?.absolute_slot;
+        let config = get_config(jito_client).await?;
+        let epoch_length: u64 = config.epoch_length.into();
+        let ncn_epoch = slot / epoch_length;
+
+        let (vault_operator_delegation, _) = vault_operator_delegation_address(vault, operator);
+        let (vault_update_state_tracker, _) = vault_update_state_tracker_address(vault, ncn_epoch);
+
+        crank_vault_update_state_tracker(
+            jito_client,
+            vault,
+            operator,
+            &vault_operator_delegation,
+            &vault_update_state_tracker,
+        ).await
+    }
+
+    pub async fn crank_vault_update_state_tracker<T: JitoClient>(
+        jito_client: &mut T,
+        vault: &Pubkey,
+        operator: &Pubkey,
+        vault_operator_delegation: &Pubkey,
+        vault_update_state_tracker: &Pubkey,
+    ) -> Result<()> {
+        let (config, _) = config_address();
+        let blockhash = jito_client.get_recent_blockhash().await?;
+
+        let tx = Transaction::new_signed_with_payer(
+            &[crank_vault_update_state_tracker_ix(
+                &config,
+                vault,
+                operator,
+                vault_operator_delegation,
+                vault_update_state_tracker,
+            )],
+            Some(&jito_client.keypair().pubkey()),
+            &[jito_client.keypair()],
+            blockhash,
+        );
+
+        jito_client.send_and_confirm_transaction(tx, None).await?;
+        Ok(())
+    }
+
+    pub async fn update_vault_balance<T: JitoClient>(
+        jito_client: &mut T,
+        vault_pubkey: &Pubkey,
+    ) -> Result<()> {
+        let (config, _) = config_address();
+        let blockhash = jito_client.get_recent_blockhash().await?;
+
+        let vault = get_vault(jito_client, vault_pubkey).await?;
+
+        let tx = Transaction::new_signed_with_payer(
+            &[update_vault_balance_ix(
+                &config,
+                vault_pubkey,
+                &get_associated_token_address(vault_pubkey, &vault.supported_mint),
+                &vault.vrt_mint,
+                &get_associated_token_address(&vault.fee_wallet, &vault.vrt_mint),
+                &spl_token_interface::id(),
+            )],
+            Some(&jito_client.keypair().pubkey()),
+            &[jito_client.keypair()],
+            blockhash,
+        );
+
+        jito_client.send_and_confirm_transaction(tx, None).await?;
+        Ok(())
+    }
+
+    pub async fn initialize_vault_update_state_tracker<T: JitoClient>(
+        jito_client: &mut T,
+        vault_pubkey: &Pubkey,
+        vault_update_state_tracker: &Pubkey,
+    ) -> Result<()> {
+        let (config, _) = config_address();
+        let blockhash = jito_client.get_recent_blockhash().await?;
+
+        let tx = Transaction::new_signed_with_payer(
+            &[initialize_vault_update_state_tracker_ix(
+                &config,
+                vault_pubkey,
+                vault_update_state_tracker,
+                &jito_client.keypair().pubkey(),
+                WithdrawalAllocationMethod::Greedy,
+            )],
+            Some(&jito_client.keypair().pubkey()),
+            &[jito_client.keypair()],
+            blockhash,
+        );
+
+        jito_client.send_and_confirm_transaction(tx, None).await?;
+        Ok(())
+    }
+
+    pub async fn close_vault_update_state_tracker<T: JitoClient>(
+        jito_client: &mut T,
+        vault_pubkey: &Pubkey,
+        vault_update_state_tracker: &Pubkey,
+        ncn_epoch: u64,
+    ) -> Result<()> {
+        let (config, _) = config_address();
+        let blockhash = jito_client.get_recent_blockhash().await?;
+
+        let tx = Transaction::new_signed_with_payer(
+            &[close_vault_update_state_tracker_ix(
+                &config,
+                vault_pubkey,
+                vault_update_state_tracker,
+                &jito_client.keypair().pubkey(),
+                ncn_epoch,
+            )],
+            Some(&jito_client.keypair().pubkey()),
+            &[jito_client.keypair()],
             blockhash,
         );
 

@@ -2,7 +2,7 @@
 //!
 //! This module provides client-side SDK functionality for the Jito Restaking program.
 
-use crate::pod::{PodU16, PodU64};
+use crate::{pod::{PodU16, PodU64}, utils::{JitoDataLen, JitoDiscriminator, JitoInitialized}};
 use solana_pubkey::Pubkey;
 
 // ----------------------- CONSTANTS -----------------------
@@ -44,6 +44,20 @@ pub struct Config {
     pub reserved: [u8; 263],
 }
 
+impl JitoDiscriminator for Config {
+    const DISCRIMINATOR: u8 = RestakingDiscriminator::Config as u8;
+}
+
+impl JitoDataLen for Config {
+    const LEN: usize = std::mem::size_of::<Config>();
+}
+
+impl JitoInitialized for Config {
+    fn is_initialized(&self) -> bool {
+        self.bump != 0
+    }
+}
+
 impl Config {
     pub const DISCRIMINATOR: u8 = RestakingDiscriminator::Config as u8;
     pub const SEED: &'static [u8] = b"config";
@@ -80,6 +94,20 @@ pub struct Ncn {
     pub reserved: [u8; 263],
 }
 
+impl JitoDiscriminator for Ncn {
+    const DISCRIMINATOR: u8 = RestakingDiscriminator::Ncn as u8;
+}
+
+impl JitoDataLen for Ncn {
+    const LEN: usize = std::mem::size_of::<Ncn>();
+}
+
+impl JitoInitialized for Ncn {
+    fn is_initialized(&self) -> bool {
+        self.bump != 0
+    }
+}
+
 impl Ncn {
     pub const DISCRIMINATOR: u8 = RestakingDiscriminator::Ncn as u8;
     pub const SEED: &'static [u8] = b"ncn";
@@ -114,6 +142,20 @@ pub struct Operator {
     pub reserved_space: [u8; 261],
 }
 
+impl JitoDiscriminator for Operator {
+    const DISCRIMINATOR: u8 = RestakingDiscriminator::Operator as u8;
+}
+
+impl JitoDataLen for Operator {
+    const LEN: usize = std::mem::size_of::<Operator>();
+}
+
+impl JitoInitialized for Operator {
+    fn is_initialized(&self) -> bool {
+        self.bump != 0
+    }
+}
+
 impl Operator {
     pub const DISCRIMINATOR: u8 = RestakingDiscriminator::Operator as u8;
     pub const SEED: &'static [u8] = b"operator";
@@ -140,6 +182,20 @@ pub struct NcnOperatorState {
     pub operator_opt_in_state: PodU64, // SlotToggle
     pub bump: u8,
     pub reserved: [u8; 263],
+}
+
+impl JitoDiscriminator for NcnOperatorState {
+    const DISCRIMINATOR: u8 = RestakingDiscriminator::NcnOperatorState as u8;
+}
+
+impl JitoDataLen for NcnOperatorState {
+    const LEN: usize = std::mem::size_of::<NcnOperatorState>();
+}
+
+impl JitoInitialized for NcnOperatorState {
+    fn is_initialized(&self) -> bool {
+        self.bump != 0
+    }
 }
 
 impl NcnOperatorState {
@@ -177,6 +233,20 @@ pub struct OperatorVaultTicket {
     pub reserved: [u8; 263],
 }
 
+impl JitoDiscriminator for OperatorVaultTicket {
+    const DISCRIMINATOR: u8 = RestakingDiscriminator::OperatorVaultTicket as u8;
+}
+
+impl JitoDataLen for OperatorVaultTicket {
+    const LEN: usize = std::mem::size_of::<OperatorVaultTicket>();
+}
+
+impl JitoInitialized for OperatorVaultTicket {
+    fn is_initialized(&self) -> bool {
+        self.bump != 0
+    }
+}
+
 impl OperatorVaultTicket {
     pub const DISCRIMINATOR: u8 = RestakingDiscriminator::OperatorVaultTicket as u8;
     pub const SEED: &'static [u8] = b"operator_vault_ticket";
@@ -210,6 +280,20 @@ pub struct NcnVaultTicket {
     pub state: PodU64, // SlotToggle
     pub bump: u8,
     pub reserved: [u8; 263],
+}
+
+impl JitoDiscriminator for NcnVaultTicket {
+    const DISCRIMINATOR: u8 = RestakingDiscriminator::NcnVaultTicket as u8;
+}
+
+impl JitoDataLen for NcnVaultTicket {
+    const LEN: usize = std::mem::size_of::<NcnVaultTicket>();
+}
+
+impl JitoInitialized for NcnVaultTicket {
+    fn is_initialized(&self) -> bool {
+        self.bump != 0
+    }
 }
 
 impl NcnVaultTicket {
@@ -247,6 +331,20 @@ pub struct NcnVaultSlasherTicket {
     pub state: PodU64, // SlotToggle
     pub bump: u8,
     pub reserved: [u8; 263],
+}
+
+impl JitoDiscriminator for NcnVaultSlasherTicket {
+    const DISCRIMINATOR: u8 = RestakingDiscriminator::NcnVaultSlasherTicket as u8;
+}
+
+impl JitoDataLen for NcnVaultSlasherTicket {
+    const LEN: usize = std::mem::size_of::<NcnVaultSlasherTicket>();
+}
+
+impl JitoInitialized for NcnVaultSlasherTicket {
+    fn is_initialized(&self) -> bool {
+        self.bump != 0
+    }
 }
 
 impl NcnVaultSlasherTicket {

@@ -26,7 +26,7 @@ pub fn consensus_address(ncn: &Pubkey) -> (Pubkey, u8) {
     (key, bump)
 }
 
-pub fn rolling_snapsshot_address(ncn: &Pubkey) -> (Pubkey, u8) {
+pub fn rolling_snapshot_address(ncn: &Pubkey) -> (Pubkey, u8) {
     let (key, bump, _) =
         rolling_snapshot::RollingSnapshot::offchain_find_program_address(&id(), ncn);
     (key, bump)

@@ -9,10 +9,17 @@ license = { workspace = true }
 edition = { workspace = true }
 readme = { workspace = true }
 
+[features]
+default = ["test-program"]
+surfpool = []
+test-program = []
+
 [dependencies]
 anyhow = { workspace = true }
 hex = { workspace = true }
 jito-bls-ncn-sdk = { workspace = true }
+jito-bls-ncn-clients = { workspace = true }
+jito-bls-ncn-core = { workspace = true }
 log = { workspace = true }
 solana-account = { workspace = true }
 solana-client = { workspace = true }
@@ -28,3 +35,4 @@ solana-system-transaction = { workspace = true }
 solana-transaction = { workspace = true }
 spl-associated-token-account-interface = { workspace = true }
 spl-token-interface = { workspace = true }
+solana-system-interface = { workspace = true }

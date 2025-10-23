@@ -13,7 +13,7 @@ use solana_transaction::{Hash, Transaction};
 use crate::jito_clients::{JitoClient, JitoClientType};
 
 // --------------------------- JITO TEST PROGRAM Client -------------------------------
-struct JitoSolanaTestProgramClient {
+pub struct JitoSolanaTestProgramClient {
     client_type: JitoClientType,
     context: ProgramTestContext,
 }
@@ -118,16 +118,9 @@ impl JitoClient for JitoSolanaTestProgramClient {
     }
 
     async fn test_warp_to_slot_incremental(&mut self, slots_to_increment: u64) -> Result<()> {
-        let clock: Clock = self.context.banks_client.get_sysvar().await?;
-        let slot_to_warp_to = slots_to_increment.saturating_add(clock.slot);
-        self.context.warp_to_slot(slot_to_warp_to).map_err(|e| {
-            anyhow!(
-                "Incremental {} warp to slot {} failed: {}",
-                slots_to_increment,
-                slot_to_warp_to,
-                e
-            )
-        })
+        let current_slot = self.get_epoch_info().await?.absolute_slot;
+        let slot_to_warp_to = slots_to_increment.saturating_add(current_slot);
+        self.test_warp_to_slot(slot_to_warp_to).await.map_err(|e| anyhow!("Warp to slot incremental {} to {} failed: {}", slots_to_increment, slot_to_warp_to, e))
     }
 
     async fn test_set_account(&mut self, address: &Pubkey, account: &Account) -> Result<()> {

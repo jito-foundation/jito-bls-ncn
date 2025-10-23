@@ -12,7 +12,7 @@ use solana_transaction::{Hash, Transaction};
 use crate::jito_clients::{JitoClient, JitoClientType};
 
 // --------------------------- JITO RPC Client -------------------------------
-struct JitoRpcClient {
+pub struct JitoRpcClient {
     client_type: JitoClientType,
     rpc_client: RpcClient,
     keypair: Keypair,

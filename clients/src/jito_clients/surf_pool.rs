@@ -1,18 +1,19 @@
 use anyhow::{anyhow, Result};
 use log::error;
 use solana_account::Account;
-use solana_client::nonblocking::rpc_client::RpcClient;
+use solana_client::{nonblocking::rpc_client::RpcClient, rpc_config::RpcSendTransactionConfig, rpc_request::RpcRequest};
 use solana_commitment_config::{CommitmentConfig, CommitmentLevel};
 use solana_epoch_info::EpochInfo;
 use solana_keypair::Keypair;
 use solana_pubkey::Pubkey;
 use solana_signature::Signature;
 use solana_transaction::{Hash, Transaction};
+use serde_json::{json, Value};
 
 use crate::jito_clients::{JitoClient, JitoClientType};
 
 // --------------------------- JITO SurfPool Client -------------------------------
-struct JitoSurfPoolClient {
+pub struct JitoSurfPoolClient {
     client_type: JitoClientType,
     rpc_client: RpcClient,
     keypair: Keypair,
@@ -75,11 +76,19 @@ impl JitoClient for JitoSurfPoolClient {
         let commitment_config = CommitmentConfig {
             commitment: commitment.unwrap_or(CommitmentLevel::Confirmed),
         };
+        let rpc_send_tx_config = RpcSendTransactionConfig {
+            skip_preflight: true,
+            preflight_commitment: None,
+            max_retries: None,
+            min_context_slot: None,
+            encoding: None
+        };
 
         self.rpc_client
-            .send_and_confirm_transaction_with_spinner_and_commitment(
+            .send_and_confirm_transaction_with_spinner_and_config(
                 &transaction,
                 commitment_config,
+                rpc_send_tx_config
             )
             .await
             .map(Some)
@@ -104,18 +113,91 @@ impl JitoClient for JitoSurfPoolClient {
     }
 
     async fn test_warp_to_slot(&mut self, slot: u64) -> Result<()> {
-        unimplemented!()
+        let params = json!([{
+            "absoluteSlot": slot
+        }]);
+
+        // Make the RPC call
+        let _: Value = self.rpc_client
+            .send(
+                RpcRequest::Custom {
+                    method: "surfnet_timeTravel"
+                },
+                params
+            )
+            .await
+            .map_err(|e| anyhow!("Error warping to slot: {}", e))?;
+
+        Ok(())
     }
 
     async fn test_warp_to_slot_incremental(&mut self, slots_to_increment: u64) -> Result<()> {
-        unimplemented!()
+        let current_slot = self.get_epoch_info().await?.absolute_slot;
+        let slot_to_warp_to = slots_to_increment.saturating_add(current_slot);
+        self.test_warp_to_slot(slot_to_warp_to).await.map_err(|e| anyhow!("Warp to slot incremental {} to {} failed: {}", slots_to_increment, slot_to_warp_to, e))
     }
 
     async fn test_set_account(&mut self, address: &Pubkey, account: &Account) -> Result<()> {
-        unimplemented!()
+        let update: Value = {
+            if account.data.is_empty() {
+                json!({
+                    "executable": account.executable,
+                    "lamports": account.lamports,
+                    "owner": account.owner.to_string(),
+                })
+            } else {
+                json!({
+                    "data": format!("0x{}", hex::encode(&account.data)),
+                    "executable": account.executable,
+                    "lamports": account.lamports,
+                    "owner": account.owner.to_string(),
+                })
+            }
+        };
+        let params = json!([
+            address.to_string(),
+            update
+        ]);
+
+        // Make the RPC call
+        let _: Value = self.rpc_client
+            .send(
+                RpcRequest::Custom {
+                    method: "surfnet_setAccount"
+                },
+                params
+            )
+            .await
+            .map_err(|e| anyhow!("Error setting account with surfnet_setAccount: {}", e))?;
+
+        Ok(())
     }
 
     async fn test_airdrop(&mut self, address: &Pubkey, lamports: u64) -> Result<()> {
-        unimplemented!()
+        let lamports = match self.get_account(address).await {
+            Ok(account) => account.lamports.saturating_add(lamports),
+            Err(_) => lamports,
+        };
+
+        let update = json!({
+            "lamports": lamports,
+        });
+        let params = json!([
+            address.to_string(),
+            update
+        ]);
+
+        // Make the RPC call
+        let _: Value = self.rpc_client
+            .send(
+                RpcRequest::Custom {
+                    method: "surfnet_setAccount"
+                },
+                params
+            )
+            .await
+            .map_err(|e| anyhow!("Error airdropping with surfnet_setAccount: {}", e))?;
+
+        Ok(())
     }
 }

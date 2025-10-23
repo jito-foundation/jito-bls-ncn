@@ -1,19 +1,19 @@
 #[cfg(test)]
 mod tests {
-    use crate::fixtures::fixture::TestBuilder;
     use anyhow::Result;
-    use jito_bls_ncn_sdk::vote_ix;
+    use jito_bls_ncn_clients::{program_clients::bls_ncn_client::{vote}};
+    use solana_keypair::Keypair;
     use solana_program_test::tokio;
     use solana_signer::Signer;
 
+    use crate::fixtures::fixture::create_test_client;
+
     #[tokio::test]
-    async fn test_vote_ok() -> Result<()> {
-        let mut fixture = TestBuilder::new().await;
+    async fn vote_ok() -> Result<()> {
+        let mut client = create_test_client().await?;
+        let ncn = Keypair::new();
 
-        let admin = fixture.context.payer.insecure_clone();
-        let ix = vote_ix(&admin.pubkey());
-
-        fixture.send_transaction(&[ix], None, &[&admin]).await?;
+        vote(&mut client, &ncn.pubkey()).await?;
 
         Ok(())
     }

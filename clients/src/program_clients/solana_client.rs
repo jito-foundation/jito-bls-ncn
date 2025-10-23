@@ -206,7 +206,7 @@ pub async fn create_ata<T: JitoClient>(
 
     let tx = Transaction::new_signed_with_payer(
         &[
-            spl_associated_token_account_interface::instruction::create_associated_token_account(
+            spl_associated_token_account_interface::instruction::create_associated_token_account_idempotent(
                 &payer.pubkey(),
                 wallet,
                 mint,

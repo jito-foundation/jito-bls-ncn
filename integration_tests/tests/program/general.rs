@@ -1,23 +1,23 @@
 #[cfg(test)]
 mod tests {
-    use crate::fixtures::fixture::TestBuilder;
+    use crate::fixtures::fixture::{create_test_client};
+    use jito_bls_ncn_clients::jito_clients::JitoClient;
     use jito_bls_ncn_sdk::id;
     use solana_program::pubkey::Pubkey;
     use solana_program_test::tokio;
+    use anyhow::Result;
 
     #[tokio::test]
-    async fn test_program_ok() {
-        let fixture = TestBuilder::new().await;
+    async fn test_program_ok() -> Result<()> {
+        let client = create_test_client().await?;
         let program_id: Pubkey = id();
 
-        let account = fixture
-            .context
-            .banks_client
-            .get_account(program_id)
-            .await
-            .expect("Could not get program");
+        let account = client
+            .get_account(&program_id)
+            .await?;
 
-        assert!(account.is_some());
-        assert!(!account.unwrap().data.is_empty());
+        assert!(!account.data.is_empty());
+
+        Ok(())
     }
 }
