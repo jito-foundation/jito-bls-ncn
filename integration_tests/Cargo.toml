@@ -17,9 +17,9 @@ test-program = []
 [dependencies]
 anyhow = { workspace = true }
 hex = { workspace = true }
-jito-bls-ncn-sdk = { workspace = true }
 jito-bls-ncn-clients = { workspace = true }
 jito-bls-ncn-core = { workspace = true }
+jito-bls-ncn-sdk = { workspace = true }
 log = { workspace = true }
 solana-account = { workspace = true }
 solana-client = { workspace = true }
@@ -31,8 +31,8 @@ solana-program-test = { workspace = true }
 solana-pubkey = { workspace = true }
 solana-signature = { workspace = true }
 solana-signer = { workspace = true }
+solana-system-interface = { workspace = true }
 solana-system-transaction = { workspace = true }
 solana-transaction = { workspace = true }
 spl-associated-token-account-interface = { workspace = true }
 spl-token-interface = { workspace = true }
-solana-system-interface = { workspace = true }

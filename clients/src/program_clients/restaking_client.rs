@@ -1,7 +1,23 @@
-use jito_bls_ncn_core::{programs::{restaking_core::{Config, Ncn, NcnOperatorState, NcnVaultTicket, Operator, OperatorVaultTicket}, restaking_sdk::{config_address, initialize_config_ix, initialize_ncn_ix, initialize_ncn_operator_state_ix, initialize_ncn_vault_ticket_ix, initialize_operator_ix, initialize_operator_vault_ticket_ix, ncn_address, ncn_cooldown_operator_ix, ncn_operator_state_address, ncn_set_admin_ix, ncn_vault_ticket_address, ncn_warmup_operator_ix, operator_address, operator_cooldown_ncn_ix, operator_set_fee_ix, operator_vault_ticket_address, operator_warmup_ncn_ix, warmup_ncn_vault_ticket_ix, warmup_operator_vault_ticket_ix}}, utils::load_account};
+use anyhow::Result;
+use jito_bls_ncn_core::{
+    programs::{
+        restaking_core::{
+            Config, Ncn, NcnOperatorState, NcnVaultTicket, Operator, OperatorVaultTicket,
+        },
+        restaking_sdk::{
+            config_address, initialize_config_ix, initialize_ncn_ix,
+            initialize_ncn_operator_state_ix, initialize_ncn_vault_ticket_ix,
+            initialize_operator_ix, initialize_operator_vault_ticket_ix, ncn_address,
+            ncn_cooldown_operator_ix, ncn_operator_state_address, ncn_set_admin_ix,
+            ncn_vault_ticket_address, ncn_warmup_operator_ix, operator_address,
+            operator_cooldown_ncn_ix, operator_set_fee_ix, operator_vault_ticket_address,
+            operator_warmup_ncn_ix, warmup_ncn_vault_ticket_ix, warmup_operator_vault_ticket_ix,
+        },
+    },
+    utils::load_account,
+};
 use solana_keypair::Keypair;
 use solana_pubkey::Pubkey;
-use anyhow::Result;
 use solana_signer::Signer;
 use solana_transaction::Transaction;
 
@@ -37,28 +53,20 @@ impl Clone for OperatorRoot {
     }
 }
 
-pub async fn get_config<T: JitoClient>(
-    jito_client: &T,
-) -> Result<Config> {
+pub async fn get_config<T: JitoClient>(jito_client: &T) -> Result<Config> {
     let (address, _, _) = config_address();
     let account_raw = jito_client.get_account(&address).await?;
     let account = unsafe { load_account::<Config>(&account_raw.data)? };
     Ok(*account)
 }
 
-pub async fn get_ncn<T: JitoClient>(
-    jito_client: &T,
-    ncn: &Pubkey,
-) -> Result<Ncn> {
+pub async fn get_ncn<T: JitoClient>(jito_client: &T, ncn: &Pubkey) -> Result<Ncn> {
     let account_raw = jito_client.get_account(ncn).await?;
     let account = unsafe { load_account::<Ncn>(&account_raw.data)? };
     Ok(*account)
 }
 
-pub async fn get_operator<T: JitoClient>(
-    jito_client: &T,
-    operator: &Pubkey,
-) -> Result<Operator> {
+pub async fn get_operator<T: JitoClient>(jito_client: &T, operator: &Pubkey) -> Result<Operator> {
     let account_raw = jito_client.get_account(operator).await?;
     let account = unsafe { load_account::<Operator>(&account_raw.data)? };
     Ok(*account)
@@ -101,7 +109,9 @@ pub async fn test_initialize_config<T: JitoClient>(jito_client: &mut T) -> Resul
     let restaking_config_admin = Keypair::new();
     let (config, _, _) = config_address();
 
-    jito_client.test_airdrop(&restaking_config_admin.pubkey(), 1_000_000_000).await?;
+    jito_client
+        .test_airdrop(&restaking_config_admin.pubkey(), 1_000_000_000)
+        .await?;
     initialize_config(jito_client, &config, &restaking_config_admin).await?;
 
     Ok(restaking_config_admin)
@@ -129,15 +139,15 @@ pub async fn initialize_config<T: JitoClient>(
     Ok(())
 }
 
-pub async fn test_initialize_operator<T: JitoClient>(
-    jito_client: &mut T,
-) -> Result<OperatorRoot> {
+pub async fn test_initialize_operator<T: JitoClient>(jito_client: &mut T) -> Result<OperatorRoot> {
     let operator_base = Keypair::new();
     let operator_admin = jito_client.keypair().insecure_clone();
     let (operator_pubkey, _, _) = operator_address(&operator_base.pubkey());
     let (config, _, _) = config_address();
 
-    jito_client.test_airdrop(&operator_admin.pubkey(), 1_000_000_000).await?;
+    jito_client
+        .test_airdrop(&operator_admin.pubkey(), 1_000_000_000)
+        .await?;
 
     let fee_bps = 100;
 
@@ -148,7 +158,8 @@ pub async fn test_initialize_operator<T: JitoClient>(
         &operator_admin,
         &operator_base,
         fee_bps,
-    ).await?;
+    )
+    .await?;
 
     Ok(OperatorRoot {
         operator_pubkey,
@@ -188,15 +199,11 @@ pub async fn test_initialize_ncn<T: JitoClient>(jito_client: &mut T) -> Result<N
     let (ncn_pubkey, _, _) = ncn_address(&ncn_base.pubkey());
     let (config, _, _) = config_address();
 
-    jito_client.test_airdrop(&ncn_admin.pubkey(), 1_000_000_000).await?;
+    jito_client
+        .test_airdrop(&ncn_admin.pubkey(), 1_000_000_000)
+        .await?;
 
-    initialize_ncn(
-        jito_client,
-        &config,
-        &ncn_pubkey,
-        &ncn_admin,
-        &ncn_base,
-    ).await?;
+    initialize_ncn(jito_client, &config, &ncn_pubkey, &ncn_admin, &ncn_base).await?;
 
     Ok(NcnRoot {
         ncn_pubkey,
@@ -243,7 +250,8 @@ pub async fn test_initialize_ncn_vault_ticket<T: JitoClient>(
         vault,
         &ncn_vault_ticket,
         &ncn_root.ncn_admin,
-    ).await?;
+    )
+    .await?;
 
     Ok(())
 }
@@ -290,7 +298,8 @@ pub async fn test_warmup_ncn_vault_ticket<T: JitoClient>(
         vault,
         &ncn_vault_ticket,
         &ncn_root.ncn_admin,
-    ).await?;
+    )
+    .await?;
 
     Ok(())
 }
@@ -327,7 +336,8 @@ pub async fn test_initialize_ncn_operator_state<T: JitoClient>(
     operator_root: &OperatorRoot,
 ) -> Result<()> {
     let (config, _, _) = config_address();
-    let (ncn_operator_state, _, _) = ncn_operator_state_address(&ncn_root.ncn_pubkey, &operator_root.operator_pubkey);
+    let (ncn_operator_state, _, _) =
+        ncn_operator_state_address(&ncn_root.ncn_pubkey, &operator_root.operator_pubkey);
 
     initialize_ncn_operator_state(
         jito_client,
@@ -336,7 +346,8 @@ pub async fn test_initialize_ncn_operator_state<T: JitoClient>(
         &operator_root.operator_pubkey,
         &ncn_operator_state,
         &ncn_root.ncn_admin,
-    ).await?;
+    )
+    .await?;
 
     Ok(())
 }
@@ -383,7 +394,8 @@ pub async fn test_ncn_warmup_operator<T: JitoClient>(
         operator,
         &ncn_operator_state,
         &ncn_root.ncn_admin,
-    ).await?;
+    )
+    .await?;
 
     Ok(())
 }
@@ -429,7 +441,8 @@ pub async fn test_ncn_cooldown_operator<T: JitoClient>(
         operator,
         &ncn_operator_state,
         &ncn_root.ncn_admin,
-    ).await?;
+    )
+    .await?;
 
     Ok(())
 }
@@ -466,12 +479,7 @@ pub async fn test_ncn_set_admin<T: JitoClient>(
     old_admin: &Keypair,
     new_admin: &Keypair,
 ) -> Result<()> {
-    ncn_set_admin(
-        jito_client,
-        ncn,
-        old_admin,
-        new_admin,
-    ).await?;
+    ncn_set_admin(jito_client, ncn, old_admin, new_admin).await?;
 
     Ok(())
 }
@@ -504,7 +512,8 @@ pub async fn test_initialize_operator_vault_ticket<T: JitoClient>(
     vault: &Pubkey,
 ) -> Result<()> {
     let (config, _, _) = config_address();
-    let (operator_vault_ticket, _, _) = operator_vault_ticket_address(&operator_root.operator_pubkey, vault);
+    let (operator_vault_ticket, _, _) =
+        operator_vault_ticket_address(&operator_root.operator_pubkey, vault);
 
     initialize_operator_vault_ticket(
         jito_client,
@@ -514,7 +523,8 @@ pub async fn test_initialize_operator_vault_ticket<T: JitoClient>(
         &operator_vault_ticket,
         &operator_root.operator_admin,
         &operator_root.operator_admin,
-    ).await?;
+    )
+    .await?;
 
     Ok(())
 }
@@ -553,7 +563,8 @@ pub async fn test_warmup_operator_vault_ticket<T: JitoClient>(
     vault: &Pubkey,
 ) -> Result<()> {
     let (config, _, _) = config_address();
-    let (operator_vault_ticket, _, _) = operator_vault_ticket_address(&operator_root.operator_pubkey, vault);
+    let (operator_vault_ticket, _, _) =
+        operator_vault_ticket_address(&operator_root.operator_pubkey, vault);
 
     warmup_operator_vault_ticket(
         jito_client,
@@ -562,7 +573,8 @@ pub async fn test_warmup_operator_vault_ticket<T: JitoClient>(
         vault,
         &operator_vault_ticket,
         &operator_root.operator_admin,
-    ).await?;
+    )
+    .await?;
 
     Ok(())
 }
@@ -599,7 +611,8 @@ pub async fn test_operator_warmup_ncn<T: JitoClient>(
     ncn: &Pubkey,
 ) -> Result<()> {
     let (config, _, _) = config_address();
-    let (ncn_operator_state, _, _) = ncn_operator_state_address(ncn, &operator_root.operator_pubkey);
+    let (ncn_operator_state, _, _) =
+        ncn_operator_state_address(ncn, &operator_root.operator_pubkey);
 
     operator_warmup_ncn(
         jito_client,
@@ -608,7 +621,8 @@ pub async fn test_operator_warmup_ncn<T: JitoClient>(
         &operator_root.operator_pubkey,
         &ncn_operator_state,
         &operator_root.operator_admin,
-    ).await?;
+    )
+    .await?;
 
     Ok(())
 }
@@ -645,7 +659,8 @@ pub async fn test_operator_cooldown_ncn<T: JitoClient>(
     ncn: &Pubkey,
 ) -> Result<()> {
     let (config, _, _) = config_address();
-    let (ncn_operator_state, _, _) = ncn_operator_state_address(ncn, &operator_root.operator_pubkey);
+    let (ncn_operator_state, _, _) =
+        ncn_operator_state_address(ncn, &operator_root.operator_pubkey);
 
     operator_cooldown_ncn(
         jito_client,
@@ -654,7 +669,8 @@ pub async fn test_operator_cooldown_ncn<T: JitoClient>(
         &operator_root.operator_pubkey,
         &ncn_operator_state,
         &operator_root.operator_admin,
-    ).await?;
+    )
+    .await?;
 
     Ok(())
 }
@@ -698,7 +714,8 @@ pub async fn test_operator_set_fee<T: JitoClient>(
         &operator_root.operator_pubkey,
         &operator_root.operator_admin,
         new_fee_bps,
-    ).await?;
+    )
+    .await?;
 
     Ok(())
 }

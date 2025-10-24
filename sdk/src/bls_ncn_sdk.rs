@@ -1,5 +1,8 @@
 use jito_bls_ncn_core::{
-    accounts::*, bls::solana_bls_interface::SolanaBN254Keypair, instructions::{InitializeBlsOperatorIxData, ReallocRollingSnapshotIxData, VoteIxData}, utils::JitoAccount
+    accounts::*,
+    bls::solana_bls_interface::SolanaBN254Keypair,
+    instructions::{InitializeBlsOperatorIxData, ReallocRollingSnapshotIxData, VoteIxData},
+    utils::JitoAccount,
 };
 use solana_instruction::{AccountMeta, Instruction};
 use solana_pubkey::Pubkey;
@@ -28,7 +31,12 @@ pub fn rolling_snapshot_address(ncn: &Pubkey) -> (Pubkey, u8, Vec<Vec<u8>>) {
 
 // --------------------------- Instructions --------------------------
 
-pub fn initialize_bls_operator_ix(admin: &Pubkey, operator: &Pubkey, bls_keypair: &SolanaBN254Keypair, socket: Option<&[u8; 128]>) -> Instruction {
+pub fn initialize_bls_operator_ix(
+    admin: &Pubkey,
+    operator: &Pubkey,
+    bls_keypair: &SolanaBN254Keypair,
+    socket: Option<&[u8; 128]>,
+) -> Instruction {
     let program_id = id();
     let system_program = solana_system_interface::program::id();
 
@@ -46,12 +54,7 @@ pub fn initialize_bls_operator_ix(admin: &Pubkey, operator: &Pubkey, bls_keypair
     let g2 = bls_keypair.public_key.g2.raw;
     let socket = socket.unwrap_or(&[0; 128]);
 
-    let ix_data = InitializeBlsOperatorIxData::new(
-        bump,
-        g1,
-        g2,
-        *socket,
-    );
+    let ix_data = InitializeBlsOperatorIxData::new(bump, g1, g2, *socket);
     let ix_data_bytes = unsafe { ix_data.to_bytes() };
 
     Instruction {
@@ -75,9 +78,7 @@ pub fn realloc_rolling_snapshot_ix(admin: &Pubkey, ncn: &Pubkey) -> Instruction 
         AccountMeta::new_readonly(system_program, false),
     ];
 
-    let ix_data = ReallocRollingSnapshotIxData::new(
-        bump
-    );
+    let ix_data = ReallocRollingSnapshotIxData::new(bump);
     let ix_data_bytes = unsafe { ix_data.to_bytes() };
 
     Instruction {
@@ -97,7 +98,7 @@ pub fn vote_ix(ncn: &Pubkey) -> Instruction {
         AccountMeta::new_readonly(system_program, false),
     ];
 
-    let ix_data = VoteIxData::new();
+    let ix_data = VoteIxData::new([0; 64]);
     let ix_data_bytes = unsafe { ix_data.to_bytes() };
 
     Instruction {

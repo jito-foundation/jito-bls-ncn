@@ -120,7 +120,14 @@ impl JitoClient for JitoSolanaTestProgramClient {
     async fn test_warp_to_slot_incremental(&mut self, slots_to_increment: u64) -> Result<()> {
         let current_slot = self.get_epoch_info().await?.absolute_slot;
         let slot_to_warp_to = slots_to_increment.saturating_add(current_slot);
-        self.test_warp_to_slot(slot_to_warp_to).await.map_err(|e| anyhow!("Warp to slot incremental {} to {} failed: {}", slots_to_increment, slot_to_warp_to, e))
+        self.test_warp_to_slot(slot_to_warp_to).await.map_err(|e| {
+            anyhow!(
+                "Warp to slot incremental {} to {} failed: {}",
+                slots_to_increment,
+                slot_to_warp_to,
+                e
+            )
+        })
     }
 
     async fn test_set_account(&mut self, address: &Pubkey, account: &Account) -> Result<()> {
@@ -135,7 +142,7 @@ impl JitoClient for JitoSolanaTestProgramClient {
 
     async fn test_airdrop(&mut self, address: &Pubkey, lamports: u64) -> Result<()> {
         let blockhash = self.get_recent_blockhash().await?;
-        let tx = transfer(&self.keypair(), address, lamports, blockhash);
+        let tx = transfer(self.keypair(), address, lamports, blockhash);
         self.send_and_confirm_transaction(tx, None).await?;
         Ok(())
     }

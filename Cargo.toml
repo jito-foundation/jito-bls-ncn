@@ -27,8 +27,8 @@ commonware-utils = "0.0.56"
 dotenv = "0.15.0"
 hex = "0.4.3"
 jito-bls-ncn-clients = { path = "./clients" }
-jito-bls-ncn-sdk = { path = "./sdk" }
 jito-bls-ncn-core = { path = "./core" }
+jito-bls-ncn-sdk = { path = "./sdk" }
 # jito-restaking-core = { package = "jito-restaking-core", git = "https://github.com/jito-foundation/restaking", branch = "master" }
 # jito-restaking-sdk = { package = "jito-restaking-sdk", git = "https://github.com/jito-foundation/restaking", branch = "master" }
 # jito-vault-core = { package = "jito-vault-core", git = "https://github.com/jito-foundation/restaking", branch = "master" }

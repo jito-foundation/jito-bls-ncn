@@ -1,8 +1,13 @@
 use solana_instruction::{AccountMeta, Instruction};
-use solana_pubkey::{Pubkey, pubkey};
+use solana_pubkey::{pubkey, Pubkey};
 
-use crate::{programs::restaking_core::{Config, Ncn, NcnOperatorState, NcnVaultSlasherTicket, NcnVaultTicket, Operator, OperatorVaultTicket}, utils::JitoAccount};
-
+use crate::{
+    programs::restaking_core::{
+        Config, Ncn, NcnOperatorState, NcnVaultSlasherTicket, NcnVaultTicket, Operator,
+        OperatorVaultTicket,
+    },
+    utils::JitoAccount,
+};
 
 // ----------------------- PROGRAM ID -----------------------
 // TODO: Replace with actual program ID
@@ -61,7 +66,10 @@ pub fn ncn_vault_slasher_ticket_address(
     NcnVaultSlasherTicket::offchain_find_program_address(&id(), (*ncn, *vault, *slasher))
 }
 
-pub fn operator_vault_ticket_address(operator: &Pubkey, vault: &Pubkey) -> (Pubkey, u8, Vec<Vec<u8>>) {
+pub fn operator_vault_ticket_address(
+    operator: &Pubkey,
+    vault: &Pubkey,
+) -> (Pubkey, u8, Vec<Vec<u8>>) {
     OperatorVaultTicket::offchain_find_program_address(&id(), (*operator, *vault))
 }
 
@@ -153,6 +161,7 @@ pub fn initialize_operator_ix(
 }
 
 /// The NCN adds support for a vault slasher
+#[allow(clippy::too_many_arguments)]
 pub fn initialize_ncn_vault_slasher_ticket_ix(
     config: &Pubkey,
     ncn: &Pubkey,

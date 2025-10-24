@@ -15,13 +15,14 @@ default = []
 [dependencies]
 anyhow = { workspace = true }
 hex = { workspace = true }
+jito-bls-ncn-core = { path = "../core", features = ["commonware"] }
 jito-bls-ncn-sdk = { workspace = true }
 log = { workspace = true }
+serde_json = { workspace = true }
 solana-account = { workspace = true }
 solana-client = { workspace = true }
 solana-commitment-config = { workspace = true }
 solana-epoch-info = { workspace = true }
-serde_json = { workspace = true }
 solana-keypair = { workspace = true }
 solana-program = { workspace = true }
 solana-program-test = { workspace = true }
@@ -32,4 +33,3 @@ solana-system-transaction = { workspace = true }
 solana-transaction = { workspace = true }
 spl-associated-token-account-interface = { workspace = true }
 spl-token-interface = { workspace = true }
-jito-bls-ncn-core = { path = "../core", features = ["commonware"] }

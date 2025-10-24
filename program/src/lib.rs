@@ -1,8 +1,8 @@
 use solana_program::declare_id;
 
+pub mod initialize_bls_operator;
 pub mod realloc_rolling_snapshot;
 pub mod vote;
-pub mod initialize_bls_operator;
 
 declare_id!("3Shbx5RwJtmD4EZHu5XmSkqaTxruikKmEU2Qx4BcccU5");
 
@@ -11,10 +11,10 @@ mod entrypoint {
     use jito_bls_ncn_core::instructions::JitoBlsNCNInstructions;
     use solana_account_info::AccountInfo;
     use solana_msg::msg;
-    use solana_program_entrypoint::{ProgramResult};
+    use solana_program_entrypoint::entrypoint;
+    use solana_program_entrypoint::ProgramResult;
     use solana_program_error::ProgramError;
     use solana_pubkey::Pubkey;
-    use solana_program_entrypoint::entrypoint;
 
     use crate::initialize_bls_operator::process_initialize_bls_operator;
     use crate::realloc_rolling_snapshot::process_realloc_rolling_snapshot;

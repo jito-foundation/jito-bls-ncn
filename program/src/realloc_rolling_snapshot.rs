@@ -1,12 +1,23 @@
-use jito_bls_ncn_core::{accounts::rolling_snapshot::RollingSnapshot, instructions::ReallocRollingSnapshotIxData, utils::{check_system_account, check_system_program, create_account, get_new_realloc_size, load_account_mut_unchecked, load_ix_data, realloc}};
 use jito_bls_ncn_core::utils::JitoAccount;
+use jito_bls_ncn_core::{
+    accounts::rolling_snapshot::RollingSnapshot,
+    instructions::ReallocRollingSnapshotIxData,
+    utils::{
+        check_system_account, check_system_program, create_account, get_new_realloc_size,
+        load_account_mut_unchecked, load_ix_data, realloc,
+    },
+};
 use solana_account_info::AccountInfo;
 use solana_msg::msg;
 use solana_program::{rent::Rent, sysvar::Sysvar};
 use solana_program_error::{ProgramError, ProgramResult};
 use solana_pubkey::Pubkey;
 
-pub fn process_realloc_rolling_snapshot(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
+pub fn process_realloc_rolling_snapshot(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    data: &[u8],
+) -> ProgramResult {
     let [rolling_snapshot, ncn, payer, system_program] = accounts else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
@@ -14,7 +25,8 @@ pub fn process_realloc_rolling_snapshot(program_id: &Pubkey, accounts: &[Account
 
     check_system_program(system_program)?;
 
-    let (pda, _, seeds) = RollingSnapshot::create_program_address(program_id, ix_data.bump, *ncn.key)?;
+    let (pda, _, seeds) =
+        RollingSnapshot::create_program_address(program_id, ix_data.bump, *ncn.key)?;
     if pda.ne(rolling_snapshot.key) {
         msg!("PDA mismatch");
         return Err(ProgramError::InvalidAccountData);
@@ -26,12 +38,21 @@ pub fn process_realloc_rolling_snapshot(program_id: &Pubkey, accounts: &[Account
         Ok(()) => {
             msg!("Creating account");
             let size = get_new_realloc_size(0, RollingSnapshot::LEN)?;
-            create_account(payer, rolling_snapshot, system_program, program_id, &rent, size as u64, &seeds)?;
+            create_account(
+                payer,
+                rolling_snapshot,
+                system_program,
+                program_id,
+                &rent,
+                size as u64,
+                &seeds,
+            )?;
         }
         Err(_) => {
             if rolling_snapshot.data_len() < RollingSnapshot::LEN {
                 msg!("Reallocing account");
-                let new_size = get_new_realloc_size(rolling_snapshot.data_len(), RollingSnapshot::LEN)?;
+                let new_size =
+                    get_new_realloc_size(rolling_snapshot.data_len(), RollingSnapshot::LEN)?;
 
                 realloc(rolling_snapshot, new_size, payer, &rent)?;
             }

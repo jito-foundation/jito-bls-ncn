@@ -1,8 +1,11 @@
 use solana_instruction::{AccountMeta, Instruction};
-use solana_pubkey::{Pubkey, pubkey};
+use solana_pubkey::{pubkey, Pubkey};
 
-use jito_bls_ncn_core::programs::vault_core::{BurnVault, Config, Vault, VaultNcnSlasherOperatorTicket, VaultNcnSlasherTicket, VaultNcnTicket, VaultOperatorDelegation, VaultStakerWithdrawalTicket, VaultUpdateStateTracker};
-use jito_bls_ncn_core::utils::{JitoAccount};
+use jito_bls_ncn_core::programs::vault_core::{
+    BurnVault, Config, Vault, VaultNcnSlasherOperatorTicket, VaultNcnSlasherTicket, VaultNcnTicket,
+    VaultOperatorDelegation, VaultStakerWithdrawalTicket, VaultUpdateStateTracker,
+};
+use jito_bls_ncn_core::utils::JitoAccount;
 
 // ----------------------- PROGRAM ID -----------------------
 pub fn id() -> Pubkey {
@@ -51,16 +54,15 @@ pub fn vault_address(base: &Pubkey) -> (Pubkey, u8, Vec<Vec<u8>>) {
     Vault::offchain_find_program_address(&id(), *base)
 }
 
-pub fn vault_operator_delegation_address(vault: &Pubkey, operator: &Pubkey) -> (Pubkey, u8, Vec<Vec<u8>>) {
-    VaultOperatorDelegation::offchain_find_program_address(
-        &id(),
-        (*vault,
-        *operator)
-    )
+pub fn vault_operator_delegation_address(
+    vault: &Pubkey,
+    operator: &Pubkey,
+) -> (Pubkey, u8, Vec<Vec<u8>>) {
+    VaultOperatorDelegation::offchain_find_program_address(&id(), (*vault, *operator))
 }
 
 pub fn vault_ncn_ticket_address(vault: &Pubkey, ncn: &Pubkey) -> (Pubkey, u8, Vec<Vec<u8>>) {
-        VaultNcnTicket::offchain_find_program_address(&id(), (*vault, *ncn))
+    VaultNcnTicket::offchain_find_program_address(&id(), (*vault, *ncn))
 }
 
 pub fn vault_ncn_slasher_ticket_address(
@@ -68,12 +70,7 @@ pub fn vault_ncn_slasher_ticket_address(
     ncn: &Pubkey,
     slasher: &Pubkey,
 ) -> (Pubkey, u8, Vec<Vec<u8>>) {
-        VaultNcnSlasherTicket::offchain_find_program_address(
-            &id(),
-            (*vault,
-            *ncn,
-            *slasher)
-        )
+    VaultNcnSlasherTicket::offchain_find_program_address(&id(), (*vault, *ncn, *slasher))
 }
 
 pub fn vault_ncn_slasher_operator_ticket_address(
@@ -85,27 +82,22 @@ pub fn vault_ncn_slasher_operator_ticket_address(
 ) -> (Pubkey, u8, Vec<Vec<u8>>) {
     VaultNcnSlasherOperatorTicket::offchain_find_program_address(
         &id(),
-        (*vault,
-        *ncn,
-        *slasher,
-        *operator,
-        epoch)
+        (*vault, *ncn, *slasher, *operator, epoch),
     )
 }
 
-pub fn vault_staker_withdrawal_ticket_address(vault: &Pubkey, base: &Pubkey) -> (Pubkey, u8, Vec<Vec<u8>>) {
-    VaultStakerWithdrawalTicket::offchain_find_program_address(
-        &id(),
-        (*vault,
-        *base))
+pub fn vault_staker_withdrawal_ticket_address(
+    vault: &Pubkey,
+    base: &Pubkey,
+) -> (Pubkey, u8, Vec<Vec<u8>>) {
+    VaultStakerWithdrawalTicket::offchain_find_program_address(&id(), (*vault, *base))
 }
 
-pub fn vault_update_state_tracker_address(vault: &Pubkey, ncn_epoch: u64) -> (Pubkey, u8, Vec<Vec<u8>>) {
-    VaultUpdateStateTracker::offchain_find_program_address(
-        &id(),
-        (*vault,
-        ncn_epoch)
-    )
+pub fn vault_update_state_tracker_address(
+    vault: &Pubkey,
+    ncn_epoch: u64,
+) -> (Pubkey, u8, Vec<Vec<u8>>) {
+    VaultUpdateStateTracker::offchain_find_program_address(&id(), (*vault, ncn_epoch))
 }
 
 // ----------------------- INSTRUCTION BUILDERS --------------------------
@@ -194,6 +186,7 @@ pub fn initialize_vault_ix(
 }
 
 /// Initializes a vault with an already-created VRT mint
+#[allow(clippy::too_many_arguments)]
 pub fn initialize_vault_with_mint_ix(
     config: &Pubkey,
     vault: &Pubkey,
@@ -1071,6 +1064,7 @@ pub fn close_vault_update_state_tracker_ix(
 }
 
 /// Creates token metadata for the vault VRT
+#[allow(clippy::too_many_arguments)]
 pub fn create_token_metadata_ix(
     vault: &Pubkey,
     admin: &Pubkey,
@@ -1118,6 +1112,7 @@ pub fn create_token_metadata_ix(
 }
 
 /// Updates token metadata for the vault VRT
+#[allow(clippy::too_many_arguments)]
 pub fn update_token_metadata_ix(
     vault: &Pubkey,
     admin: &Pubkey,
@@ -1161,11 +1156,7 @@ pub fn update_token_metadata_ix(
 }
 
 /// Changes the admin for the config
-pub fn set_config_admin_ix(
-    config: &Pubkey,
-    old_admin: &Pubkey,
-    new_admin: &Pubkey,
-) -> Instruction {
+pub fn set_config_admin_ix(config: &Pubkey, old_admin: &Pubkey, new_admin: &Pubkey) -> Instruction {
     let program_id = id();
 
     let accounts = vec![

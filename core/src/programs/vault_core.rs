@@ -2,7 +2,11 @@
 //!
 //! This module provides client-side SDK functionality for the Jito Vault program.
 
-use crate::{pod::{PodU16, PodU64}, programs::slot_toggle_core::SlotToggle, utils::{check_account, get_epoch, load_account, JitoAccount}};
+use crate::{
+    pod::{PodU16, PodU64},
+    programs::slot_toggle_core::SlotToggle,
+    utils::{check_account, get_epoch, load_account, JitoAccount},
+};
 use solana_account_info::AccountInfo;
 use solana_msg::msg;
 use solana_program_error::ProgramError;
@@ -64,14 +68,21 @@ impl JitoAccount for Config {
         vec![Self::SEED.to_vec()]
     }
 
-    fn offchain_find_program_address(program_id: &Pubkey, inputs: Self::SeedInputs) -> (Pubkey, u8, Vec<Vec<u8>>) {
+    fn offchain_find_program_address(
+        program_id: &Pubkey,
+        inputs: Self::SeedInputs,
+    ) -> (Pubkey, u8, Vec<Vec<u8>>) {
         let seeds = Self::seeds(inputs);
         let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
         let (pda, bump) = Pubkey::find_program_address(&seeds_iter, program_id);
         (pda, bump, seeds)
     }
 
-    fn create_program_address(program_id: &Pubkey, bump: u8, inputs: Self::SeedInputs) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError> {
+    fn create_program_address(
+        program_id: &Pubkey,
+        bump: u8,
+        inputs: Self::SeedInputs,
+    ) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError> {
         let mut seeds = Self::seeds(inputs);
         seeds.push(vec![bump]);
         let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
@@ -79,7 +90,12 @@ impl JitoAccount for Config {
         Ok((pda, bump, seeds))
     }
 
-    fn check(program_id: &Pubkey, account: &AccountInfo, expect_writable: bool, check_admin: Option<&AccountInfo>) -> Result<(), ProgramError> {
+    fn check(
+        program_id: &Pubkey,
+        account: &AccountInfo,
+        expect_writable: bool,
+        check_admin: Option<&AccountInfo>,
+    ) -> Result<(), ProgramError> {
         let data = account.data.borrow();
         let data_account = unsafe { load_account::<Self>(&data)? };
         let (expected_pda, _, _) = Self::create_program_address(program_id, data_account.bump, ())?;
@@ -124,14 +140,21 @@ impl JitoAccount for BurnVault {
         vec![Self::SEED.to_vec(), base.to_bytes().to_vec()]
     }
 
-    fn offchain_find_program_address(program_id: &Pubkey, inputs: Self::SeedInputs) -> (Pubkey, u8, Vec<Vec<u8>>) {
+    fn offchain_find_program_address(
+        program_id: &Pubkey,
+        inputs: Self::SeedInputs,
+    ) -> (Pubkey, u8, Vec<Vec<u8>>) {
         let seeds = Self::seeds(inputs);
         let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
         let (pda, bump) = Pubkey::find_program_address(&seeds_iter, program_id);
         (pda, bump, seeds)
     }
 
-    fn create_program_address(program_id: &Pubkey, bump: u8, inputs: Self::SeedInputs) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError> {
+    fn create_program_address(
+        program_id: &Pubkey,
+        bump: u8,
+        inputs: Self::SeedInputs,
+    ) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError> {
         let mut seeds = Self::seeds(inputs);
         seeds.push(vec![bump]);
         let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
@@ -139,7 +162,12 @@ impl JitoAccount for BurnVault {
         Ok((pda, bump, seeds))
     }
 
-    fn check(_: &Pubkey, _: &AccountInfo, _: bool, _: Option<&AccountInfo>) -> Result<(), ProgramError> {
+    fn check(
+        _: &Pubkey,
+        _: &AccountInfo,
+        _: bool,
+        _: Option<&AccountInfo>,
+    ) -> Result<(), ProgramError> {
         msg!("Burn Vault is symbolic, not a data account");
         Err(ProgramError::InvalidAccountData)
     }
@@ -196,17 +224,31 @@ impl JitoAccount for VaultNcnSlasherOperatorTicket {
     /// Note: check if epoch should be `le`
     fn seeds(inputs: Self::SeedInputs) -> Vec<Vec<u8>> {
         let (vault, ncn, slasher, operator, epoch) = inputs;
-        vec![Self::SEED.to_vec(), vault.to_bytes().to_vec(), ncn.to_bytes().to_vec(), slasher.to_bytes().to_vec(), operator.to_bytes().to_vec(), epoch.to_le_bytes().to_vec()]
+        vec![
+            Self::SEED.to_vec(),
+            vault.to_bytes().to_vec(),
+            ncn.to_bytes().to_vec(),
+            slasher.to_bytes().to_vec(),
+            operator.to_bytes().to_vec(),
+            epoch.to_le_bytes().to_vec(),
+        ]
     }
 
-    fn offchain_find_program_address(program_id: &Pubkey, inputs: Self::SeedInputs) -> (Pubkey, u8, Vec<Vec<u8>>) {
+    fn offchain_find_program_address(
+        program_id: &Pubkey,
+        inputs: Self::SeedInputs,
+    ) -> (Pubkey, u8, Vec<Vec<u8>>) {
         let seeds = Self::seeds(inputs);
         let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
         let (pda, bump) = Pubkey::find_program_address(&seeds_iter, program_id);
         (pda, bump, seeds)
     }
 
-    fn create_program_address(program_id: &Pubkey, bump: u8, inputs: Self::SeedInputs) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError> {
+    fn create_program_address(
+        program_id: &Pubkey,
+        bump: u8,
+        inputs: Self::SeedInputs,
+    ) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError> {
         let mut seeds = Self::seeds(inputs);
         seeds.push(vec![bump]);
         let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
@@ -214,10 +256,25 @@ impl JitoAccount for VaultNcnSlasherOperatorTicket {
         Ok((pda, bump, seeds))
     }
 
-    fn check(program_id: &Pubkey, account: &AccountInfo, expect_writable: bool, check_admin: Option<&AccountInfo>) -> Result<(), ProgramError> {
+    fn check(
+        program_id: &Pubkey,
+        account: &AccountInfo,
+        expect_writable: bool,
+        check_admin: Option<&AccountInfo>,
+    ) -> Result<(), ProgramError> {
         let data = account.data.borrow();
         let data_account = unsafe { load_account::<Self>(&data)? };
-        let (expected_pda, _, _) = Self::create_program_address(program_id, data_account.bump, (data_account.vault, data_account.ncn, data_account.slasher, data_account.operator, data_account.epoch.get()))?;
+        let (expected_pda, _, _) = Self::create_program_address(
+            program_id,
+            data_account.bump,
+            (
+                data_account.vault,
+                data_account.ncn,
+                data_account.slasher,
+                data_account.operator,
+                data_account.epoch.get(),
+            ),
+        )?;
 
         check_account(
             program_id,
@@ -228,7 +285,7 @@ impl JitoAccount for VaultNcnSlasherOperatorTicket {
             check_admin,
         )?;
 
-        if let Some(_) = check_admin {
+        if check_admin.is_some() {
             msg!("No admin in account");
             return Err(ProgramError::InvalidAccountData);
         }
@@ -240,7 +297,6 @@ impl JitoAccount for VaultNcnSlasherOperatorTicket {
         self.discriminator.get() == Self::DISCRIMINATOR
     }
 }
-
 
 // ----------------------- VAULT NCN SLASHER TICKET -----------------------
 
@@ -268,17 +324,29 @@ impl JitoAccount for VaultNcnSlasherTicket {
     /// vault, ncn, slasher
     fn seeds(inputs: Self::SeedInputs) -> Vec<Vec<u8>> {
         let (vault, ncn, slasher) = inputs;
-        vec![Self::SEED.to_vec(), vault.to_bytes().to_vec(), ncn.to_bytes().to_vec(), slasher.to_bytes().to_vec()]
+        vec![
+            Self::SEED.to_vec(),
+            vault.to_bytes().to_vec(),
+            ncn.to_bytes().to_vec(),
+            slasher.to_bytes().to_vec(),
+        ]
     }
 
-    fn offchain_find_program_address(program_id: &Pubkey, inputs: Self::SeedInputs) -> (Pubkey, u8, Vec<Vec<u8>>) {
+    fn offchain_find_program_address(
+        program_id: &Pubkey,
+        inputs: Self::SeedInputs,
+    ) -> (Pubkey, u8, Vec<Vec<u8>>) {
         let seeds = Self::seeds(inputs);
         let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
         let (pda, bump) = Pubkey::find_program_address(&seeds_iter, program_id);
         (pda, bump, seeds)
     }
 
-    fn create_program_address(program_id: &Pubkey, bump: u8, inputs: Self::SeedInputs) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError> {
+    fn create_program_address(
+        program_id: &Pubkey,
+        bump: u8,
+        inputs: Self::SeedInputs,
+    ) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError> {
         let mut seeds = Self::seeds(inputs);
         seeds.push(vec![bump]);
         let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
@@ -286,10 +354,19 @@ impl JitoAccount for VaultNcnSlasherTicket {
         Ok((pda, bump, seeds))
     }
 
-    fn check(program_id: &Pubkey, account: &AccountInfo, expect_writable: bool, check_admin: Option<&AccountInfo>) -> Result<(), ProgramError> {
+    fn check(
+        program_id: &Pubkey,
+        account: &AccountInfo,
+        expect_writable: bool,
+        check_admin: Option<&AccountInfo>,
+    ) -> Result<(), ProgramError> {
         let data = account.data.borrow();
         let data_account = unsafe { load_account::<Self>(&data)? };
-        let (expected_pda, _, _) = Self::create_program_address(program_id, data_account.bump, (data_account.vault, data_account.ncn, data_account.slasher))?;
+        let (expected_pda, _, _) = Self::create_program_address(
+            program_id,
+            data_account.bump,
+            (data_account.vault, data_account.ncn, data_account.slasher),
+        )?;
 
         check_account(
             program_id,
@@ -300,7 +377,7 @@ impl JitoAccount for VaultNcnSlasherTicket {
             check_admin,
         )?;
 
-        if let Some(_) = check_admin {
+        if check_admin.is_some() {
             msg!("No admin in account");
             return Err(ProgramError::InvalidAccountData);
         }
@@ -337,17 +414,28 @@ impl JitoAccount for VaultNcnTicket {
     /// vault, ncn
     fn seeds(inputs: Self::SeedInputs) -> Vec<Vec<u8>> {
         let (vault, ncn) = inputs;
-        vec![Self::SEED.to_vec(), vault.to_bytes().to_vec(), ncn.to_bytes().to_vec()]
+        vec![
+            Self::SEED.to_vec(),
+            vault.to_bytes().to_vec(),
+            ncn.to_bytes().to_vec(),
+        ]
     }
 
-    fn offchain_find_program_address(program_id: &Pubkey, inputs: Self::SeedInputs) -> (Pubkey, u8, Vec<Vec<u8>>) {
+    fn offchain_find_program_address(
+        program_id: &Pubkey,
+        inputs: Self::SeedInputs,
+    ) -> (Pubkey, u8, Vec<Vec<u8>>) {
         let seeds = Self::seeds(inputs);
         let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
         let (pda, bump) = Pubkey::find_program_address(&seeds_iter, program_id);
         (pda, bump, seeds)
     }
 
-    fn create_program_address(program_id: &Pubkey, bump: u8, inputs: Self::SeedInputs) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError> {
+    fn create_program_address(
+        program_id: &Pubkey,
+        bump: u8,
+        inputs: Self::SeedInputs,
+    ) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError> {
         let mut seeds = Self::seeds(inputs);
         seeds.push(vec![bump]);
         let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
@@ -355,10 +443,19 @@ impl JitoAccount for VaultNcnTicket {
         Ok((pda, bump, seeds))
     }
 
-    fn check(program_id: &Pubkey, account: &AccountInfo, expect_writable: bool, check_admin: Option<&AccountInfo>) -> Result<(), ProgramError> {
+    fn check(
+        program_id: &Pubkey,
+        account: &AccountInfo,
+        expect_writable: bool,
+        check_admin: Option<&AccountInfo>,
+    ) -> Result<(), ProgramError> {
         let data = account.data.borrow();
         let data_account = unsafe { load_account::<Self>(&data)? };
-        let (expected_pda, _, _) = Self::create_program_address(program_id, data_account.bump, (data_account.vault, data_account.ncn))?;
+        let (expected_pda, _, _) = Self::create_program_address(
+            program_id,
+            data_account.bump,
+            (data_account.vault, data_account.ncn),
+        )?;
 
         check_account(
             program_id,
@@ -369,7 +466,7 @@ impl JitoAccount for VaultNcnTicket {
             check_admin,
         )?;
 
-        if let Some(_) = check_admin {
+        if check_admin.is_some() {
             msg!("No admin in account");
             return Err(ProgramError::InvalidAccountData);
         }
@@ -407,17 +504,28 @@ impl JitoAccount for VaultOperatorDelegation {
     /// vault, operator
     fn seeds(inputs: Self::SeedInputs) -> Vec<Vec<u8>> {
         let (vault, operator) = inputs;
-        vec![Self::SEED.to_vec(), vault.to_bytes().to_vec(), operator.to_bytes().to_vec()]
+        vec![
+            Self::SEED.to_vec(),
+            vault.to_bytes().to_vec(),
+            operator.to_bytes().to_vec(),
+        ]
     }
 
-    fn offchain_find_program_address(program_id: &Pubkey, inputs: Self::SeedInputs) -> (Pubkey, u8, Vec<Vec<u8>>) {
+    fn offchain_find_program_address(
+        program_id: &Pubkey,
+        inputs: Self::SeedInputs,
+    ) -> (Pubkey, u8, Vec<Vec<u8>>) {
         let seeds = Self::seeds(inputs);
         let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
         let (pda, bump) = Pubkey::find_program_address(&seeds_iter, program_id);
         (pda, bump, seeds)
     }
 
-    fn create_program_address(program_id: &Pubkey, bump: u8, inputs: Self::SeedInputs) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError> {
+    fn create_program_address(
+        program_id: &Pubkey,
+        bump: u8,
+        inputs: Self::SeedInputs,
+    ) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError> {
         let mut seeds = Self::seeds(inputs);
         seeds.push(vec![bump]);
         let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
@@ -425,10 +533,19 @@ impl JitoAccount for VaultOperatorDelegation {
         Ok((pda, bump, seeds))
     }
 
-    fn check(program_id: &Pubkey, account: &AccountInfo, expect_writable: bool, check_admin: Option<&AccountInfo>) -> Result<(), ProgramError> {
+    fn check(
+        program_id: &Pubkey,
+        account: &AccountInfo,
+        expect_writable: bool,
+        check_admin: Option<&AccountInfo>,
+    ) -> Result<(), ProgramError> {
         let data = account.data.borrow();
         let data_account = unsafe { load_account::<Self>(&data)? };
-        let (expected_pda, _, _) = Self::create_program_address(program_id, data_account.bump, (data_account.vault, data_account.operator))?;
+        let (expected_pda, _, _) = Self::create_program_address(
+            program_id,
+            data_account.bump,
+            (data_account.vault, data_account.operator),
+        )?;
 
         check_account(
             program_id,
@@ -439,7 +556,7 @@ impl JitoAccount for VaultOperatorDelegation {
             check_admin,
         )?;
 
-        if let Some(_) = check_admin {
+        if check_admin.is_some() {
             msg!("No admin in account");
             return Err(ProgramError::InvalidAccountData);
         }
@@ -477,17 +594,28 @@ impl JitoAccount for VaultStakerWithdrawalTicket {
     /// vault, base
     fn seeds(inputs: Self::SeedInputs) -> Vec<Vec<u8>> {
         let (vault, base) = inputs;
-        vec![Self::SEED.to_vec(), vault.to_bytes().to_vec(), base.to_bytes().to_vec()]
+        vec![
+            Self::SEED.to_vec(),
+            vault.to_bytes().to_vec(),
+            base.to_bytes().to_vec(),
+        ]
     }
 
-    fn offchain_find_program_address(program_id: &Pubkey, inputs: Self::SeedInputs) -> (Pubkey, u8, Vec<Vec<u8>>) {
+    fn offchain_find_program_address(
+        program_id: &Pubkey,
+        inputs: Self::SeedInputs,
+    ) -> (Pubkey, u8, Vec<Vec<u8>>) {
         let seeds = Self::seeds(inputs);
         let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
         let (pda, bump) = Pubkey::find_program_address(&seeds_iter, program_id);
         (pda, bump, seeds)
     }
 
-    fn create_program_address(program_id: &Pubkey, bump: u8, inputs: Self::SeedInputs) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError> {
+    fn create_program_address(
+        program_id: &Pubkey,
+        bump: u8,
+        inputs: Self::SeedInputs,
+    ) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError> {
         let mut seeds = Self::seeds(inputs);
         seeds.push(vec![bump]);
         let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
@@ -495,10 +623,19 @@ impl JitoAccount for VaultStakerWithdrawalTicket {
         Ok((pda, bump, seeds))
     }
 
-    fn check(program_id: &Pubkey, account: &AccountInfo, expect_writable: bool, check_admin: Option<&AccountInfo>) -> Result<(), ProgramError> {
+    fn check(
+        program_id: &Pubkey,
+        account: &AccountInfo,
+        expect_writable: bool,
+        check_admin: Option<&AccountInfo>,
+    ) -> Result<(), ProgramError> {
         let data = account.data.borrow();
         let data_account = unsafe { load_account::<Self>(&data)? };
-        let (expected_pda, _, _) = Self::create_program_address(program_id, data_account.bump, (data_account.vault, data_account.base))?;
+        let (expected_pda, _, _) = Self::create_program_address(
+            program_id,
+            data_account.bump,
+            (data_account.vault, data_account.base),
+        )?;
 
         check_account(
             program_id,
@@ -509,7 +646,7 @@ impl JitoAccount for VaultStakerWithdrawalTicket {
             check_admin,
         )?;
 
-        if let Some(_) = check_admin {
+        if check_admin.is_some() {
             msg!("No admin in account");
             return Err(ProgramError::InvalidAccountData);
         }
@@ -546,17 +683,28 @@ impl JitoAccount for VaultUpdateStateTracker {
     /// vault, ncn_epoch
     fn seeds(inputs: Self::SeedInputs) -> Vec<Vec<u8>> {
         let (vault, ncn_epoch) = inputs;
-        vec![Self::SEED.to_vec(), vault.to_bytes().to_vec(), ncn_epoch.to_le_bytes().to_vec()]
+        vec![
+            Self::SEED.to_vec(),
+            vault.to_bytes().to_vec(),
+            ncn_epoch.to_le_bytes().to_vec(),
+        ]
     }
 
-    fn offchain_find_program_address(program_id: &Pubkey, inputs: Self::SeedInputs) -> (Pubkey, u8, Vec<Vec<u8>>) {
+    fn offchain_find_program_address(
+        program_id: &Pubkey,
+        inputs: Self::SeedInputs,
+    ) -> (Pubkey, u8, Vec<Vec<u8>>) {
         let seeds = Self::seeds(inputs);
         let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
         let (pda, bump) = Pubkey::find_program_address(&seeds_iter, program_id);
         (pda, bump, seeds)
     }
 
-    fn create_program_address(program_id: &Pubkey, bump: u8, inputs: Self::SeedInputs) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError> {
+    fn create_program_address(
+        program_id: &Pubkey,
+        bump: u8,
+        inputs: Self::SeedInputs,
+    ) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError> {
         let mut seeds = Self::seeds(inputs);
         seeds.push(vec![bump]);
         let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
@@ -564,8 +712,12 @@ impl JitoAccount for VaultUpdateStateTracker {
         Ok((pda, bump, seeds))
     }
 
-    fn check(_: &Pubkey, _: &AccountInfo, _: bool, _: Option<&AccountInfo>) -> Result<(), ProgramError> {
-
+    fn check(
+        _: &Pubkey,
+        _: &AccountInfo,
+        _: bool,
+        _: Option<&AccountInfo>,
+    ) -> Result<(), ProgramError> {
         msg!("No bump in account");
         Err(ProgramError::InvalidAccountData)
 
@@ -653,14 +805,21 @@ impl JitoAccount for Vault {
         vec![Self::SEED.to_vec(), base.to_bytes().to_vec()]
     }
 
-    fn offchain_find_program_address(program_id: &Pubkey, inputs: Self::SeedInputs) -> (Pubkey, u8, Vec<Vec<u8>>) {
+    fn offchain_find_program_address(
+        program_id: &Pubkey,
+        inputs: Self::SeedInputs,
+    ) -> (Pubkey, u8, Vec<Vec<u8>>) {
         let seeds = Self::seeds(inputs);
         let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
         let (pda, bump) = Pubkey::find_program_address(&seeds_iter, program_id);
         (pda, bump, seeds)
     }
 
-    fn create_program_address(program_id: &Pubkey, bump: u8, inputs: Self::SeedInputs) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError> {
+    fn create_program_address(
+        program_id: &Pubkey,
+        bump: u8,
+        inputs: Self::SeedInputs,
+    ) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError> {
         let mut seeds = Self::seeds(inputs);
         seeds.push(vec![bump]);
         let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
@@ -668,10 +827,16 @@ impl JitoAccount for Vault {
         Ok((pda, bump, seeds))
     }
 
-    fn check(program_id: &Pubkey, account: &AccountInfo, expect_writable: bool, check_admin: Option<&AccountInfo>) -> Result<(), ProgramError> {
+    fn check(
+        program_id: &Pubkey,
+        account: &AccountInfo,
+        expect_writable: bool,
+        check_admin: Option<&AccountInfo>,
+    ) -> Result<(), ProgramError> {
         let data = account.data.borrow();
         let data_account = unsafe { load_account::<Self>(&data)? };
-        let (expected_pda, _, _) = Self::create_program_address(program_id, data_account.bump, data_account.base)?;
+        let (expected_pda, _, _) =
+            Self::create_program_address(program_id, data_account.bump, data_account.base)?;
 
         check_account(
             program_id,
@@ -679,7 +844,7 @@ impl JitoAccount for Vault {
             &expected_pda,
             Some(Self::DISCRIMINATOR),
             expect_writable,
-            check_admin
+            check_admin,
         )?;
 
         if let Some(admin) = check_admin {
@@ -702,7 +867,8 @@ impl Vault {
     }
 
     pub fn is_update_needed(&self, slot: u64, epoch_length: u64) -> Result<bool, ProgramError> {
-        let last_updated_epoch = Self::get_epoch(self.last_full_state_update_slot.into(), epoch_length)?;
+        let last_updated_epoch =
+            Self::get_epoch(self.last_full_state_update_slot.into(), epoch_length)?;
         let current_epoch = Self::get_epoch(slot, epoch_length)?;
 
         Ok(last_updated_epoch < current_epoch)

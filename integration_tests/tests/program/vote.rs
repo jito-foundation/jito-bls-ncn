@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use jito_bls_ncn_clients::{program_clients::bls_ncn_client::{vote}};
+    use jito_bls_ncn_clients::program_clients::bls_ncn_client::vote;
     use solana_keypair::Keypair;
     use solana_program_test::tokio;
     use solana_signer::Signer;

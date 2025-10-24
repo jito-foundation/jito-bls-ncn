@@ -1,6 +1,9 @@
 use solana_account_info::{AccountInfo, MAX_PERMITTED_DATA_INCREASE};
 use solana_msg::msg;
-use solana_program::{program::{invoke, invoke_signed}, rent::Rent};
+use solana_program::{
+    program::{invoke, invoke_signed},
+    rent::Rent,
+};
 use solana_program_error::{ProgramError, ProgramResult};
 use solana_pubkey::Pubkey;
 
@@ -12,9 +15,21 @@ pub trait JitoAccount {
     type SeedInputs;
 
     fn seeds(inputs: Self::SeedInputs) -> Vec<Vec<u8>>;
-    fn offchain_find_program_address(program_id: &Pubkey, inputs: Self::SeedInputs) -> (Pubkey, u8, Vec<Vec<u8>>);
-    fn create_program_address(program_id: &Pubkey, bump: u8, inputs: Self::SeedInputs) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError>;
-    fn check(program_id: &Pubkey, account: &AccountInfo, expect_writable: bool, check_admin: Option<&AccountInfo>) -> Result<(), ProgramError>;
+    fn offchain_find_program_address(
+        program_id: &Pubkey,
+        inputs: Self::SeedInputs,
+    ) -> (Pubkey, u8, Vec<Vec<u8>>);
+    fn create_program_address(
+        program_id: &Pubkey,
+        bump: u8,
+        inputs: Self::SeedInputs,
+    ) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError>;
+    fn check(
+        program_id: &Pubkey,
+        account: &AccountInfo,
+        expect_writable: bool,
+        check_admin: Option<&AccountInfo>,
+    ) -> Result<(), ProgramError>;
 
     fn is_initialized(&self) -> bool;
 }
@@ -39,9 +54,7 @@ pub trait JitoIxData {
 /// # Safety
 /// Caller must ensure everything is 1 byte aligned
 #[inline(always)]
-pub unsafe fn load_account<T: JitoAccount>(
-    bytes: &[u8],
-) -> Result<&T, ProgramError> {
+pub unsafe fn load_account<T: JitoAccount>(bytes: &[u8]) -> Result<&T, ProgramError> {
     load_account_unchecked::<T>(bytes).and_then(|account| {
         if account.is_initialized() {
             Ok(account)
@@ -64,9 +77,7 @@ pub unsafe fn load_account_unchecked<T: JitoAccount>(bytes: &[u8]) -> Result<&T,
 /// # Safety
 /// Caller must ensure everything is 1 byte aligned
 #[inline(always)]
-pub unsafe fn load_account_mut<T: JitoAccount>(
-    bytes: &mut [u8],
-) -> Result<&mut T, ProgramError> {
+pub unsafe fn load_account_mut<T: JitoAccount>(bytes: &mut [u8]) -> Result<&mut T, ProgramError> {
     load_account_mut_unchecked::<T>(bytes).and_then(|acc| {
         if acc.is_initialized() {
             Ok(acc)
@@ -260,7 +271,11 @@ pub fn create_account<'a, 'info>(
             .saturating_sub(current_lamports);
         if required_lamports > 0 {
             invoke(
-                &solana_system_interface::instruction::transfer(payer.key, new_account.key, required_lamports),
+                &solana_system_interface::instruction::transfer(
+                    payer.key,
+                    new_account.key,
+                    required_lamports,
+                ),
                 &[payer.clone(), new_account.clone(), system_program.clone()],
             )?;
         }
@@ -292,7 +307,7 @@ pub fn close_program_account<'a>(
     program_id: &Pubkey,
     account_to_close: &AccountInfo<'a>,
     destination_account: &AccountInfo<'a>,
-    system_program: &'a AccountInfo<'a>
+    system_program: &'a AccountInfo<'a>,
 ) -> ProgramResult {
     // Check if the account is owned by the program
     if account_to_close.owner != program_id {
@@ -338,9 +353,12 @@ pub fn get_epoch(slot: u64, epoch_length: u64) -> Result<u64, ProgramError> {
 
 /// Calculate new size for reallocation, capped at target size
 /// Returns the minimum of (current_size + MAX_REALLOC_BYTES) and target_size
-pub fn get_new_realloc_size(current_size: usize, target_size: usize) -> Result<usize, ProgramError> {
+pub fn get_new_realloc_size(
+    current_size: usize,
+    target_size: usize,
+) -> Result<usize, ProgramError> {
     Ok(current_size
-        .checked_add(MAX_PERMITTED_DATA_INCREASE as usize)
+        .checked_add(MAX_PERMITTED_DATA_INCREASE)
         .ok_or(ProgramError::ArithmeticOverflow)?
         .min(target_size))
 }
@@ -350,7 +368,9 @@ pub fn get_realloc_calls(current_size: usize, target_size: usize) -> Result<usiz
     if bytes_to_go == 0 {
         Ok(0)
     } else {
-        let checked_div = bytes_to_go.checked_div(MAX_PERMITTED_DATA_INCREASE).ok_or(ProgramError::ArithmeticOverflow)?;
+        let checked_div = bytes_to_go
+            .checked_div(MAX_PERMITTED_DATA_INCREASE)
+            .ok_or(ProgramError::ArithmeticOverflow)?;
         Ok(checked_div.saturating_add(1))
     }
 }

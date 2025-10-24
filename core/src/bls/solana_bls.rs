@@ -84,7 +84,9 @@
 use ark_bn254::{Fq, Fq2, Fr, G1Projective, G2Affine};
 use ark_ec::{AffineRepr, CurveGroup};
 use ark_ff::{BigInteger, Field, One, PrimeField};
-use solana_bn254::prelude::{alt_bn128_g1_addition_be, alt_bn128_g1_multiplication_be, alt_bn128_pairing_be};
+use solana_bn254::prelude::{
+    alt_bn128_g1_addition_be, alt_bn128_g1_multiplication_be, alt_bn128_pairing_be,
+};
 
 // ----------------------------------------------------------------------------
 //                       CONSTANTS
@@ -429,7 +431,8 @@ pub fn add_g1(p1: &[u8; 64], p2: &[u8; 64]) -> Result<[u8; 64], String> {
     input.extend_from_slice(p1);
     input.extend_from_slice(p2);
 
-    let result = alt_bn128_g1_addition_be(&input).map_err(|e| format!("G1 addition failed: {:?}", e))?;
+    let result =
+        alt_bn128_g1_addition_be(&input).map_err(|e| format!("G1 addition failed: {:?}", e))?;
 
     let mut output = [0u8; 64];
     output.copy_from_slice(&result);

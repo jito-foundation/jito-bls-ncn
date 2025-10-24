@@ -1,6 +1,4 @@
-use crate::{
-    errors::BlsNcnProgramError, pod::PodU64, utils::JitoIxData,
-};
+use crate::{errors::BlsNcnProgramError, pod::PodU64, utils::JitoIxData};
 
 #[repr(u64)]
 pub enum JitoBlsNCNInstructions {
@@ -110,6 +108,7 @@ impl ReallocRollingSnapshotIxData {
 #[repr(C, packed)]
 pub struct VoteIxData {
     pub discriminator: u64,
+    pub g1: [u8; 64],
 }
 
 impl JitoIxData for VoteIxData {
@@ -118,9 +117,10 @@ impl JitoIxData for VoteIxData {
 }
 
 impl VoteIxData {
-    pub fn new() -> Self {
+    pub fn new(g1: [u8; 64]) -> Self {
         Self {
             discriminator: Self::DISCRIMINATOR,
+            g1,
         }
     }
 

@@ -19,6 +19,7 @@ pub enum JitoClientType {
     SolanaTestProgram = 0x02,
 }
 
+#[allow(async_fn_in_trait)]
 pub trait JitoClient {
     fn get_client_type(&self) -> JitoClientType;
     fn keypair(&self) -> &Keypair;

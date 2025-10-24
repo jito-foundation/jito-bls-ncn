@@ -1,14 +1,14 @@
 use core::fmt;
 
 use solana_account_info::AccountInfo;
+use solana_msg::msg;
 use solana_program_error::ProgramError;
 use solana_pubkey::Pubkey;
-use solana_msg::msg;
 
 use crate::{
     discriminators::Discriminators,
     pod::{PodOption, PodU64},
-    utils::{check_account, JitoAccount, load_account},
+    utils::{check_account, load_account, JitoAccount},
 };
 
 /// Individual operator account that stores BLS keys for a specific operator in a specific NCN
@@ -38,14 +38,21 @@ impl JitoAccount for Consensus {
         vec![Self::SEED.to_vec(), ncn.to_bytes().to_vec()]
     }
 
-    fn offchain_find_program_address(program_id: &Pubkey, inputs: Self::SeedInputs) -> (Pubkey, u8, Vec<Vec<u8>>) {
+    fn offchain_find_program_address(
+        program_id: &Pubkey,
+        inputs: Self::SeedInputs,
+    ) -> (Pubkey, u8, Vec<Vec<u8>>) {
         let seeds = Self::seeds(inputs);
         let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
         let (pda, bump) = Pubkey::find_program_address(&seeds_iter, program_id);
         (pda, bump, seeds)
     }
 
-    fn create_program_address(program_id: &Pubkey, bump: u8, inputs: Self::SeedInputs) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError> {
+    fn create_program_address(
+        program_id: &Pubkey,
+        bump: u8,
+        inputs: Self::SeedInputs,
+    ) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError> {
         let mut seeds = Self::seeds(inputs);
         seeds.push(vec![bump]);
         let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
@@ -53,10 +60,16 @@ impl JitoAccount for Consensus {
         Ok((pda, bump, seeds))
     }
 
-    fn check(program_id: &Pubkey, account: &AccountInfo, expect_writable: bool, check_admin: Option<&AccountInfo>) -> Result<(), ProgramError> {
+    fn check(
+        program_id: &Pubkey,
+        account: &AccountInfo,
+        expect_writable: bool,
+        check_admin: Option<&AccountInfo>,
+    ) -> Result<(), ProgramError> {
         let data = account.data.borrow();
         let data_account = unsafe { load_account::<Self>(&data)? };
-        let (expected_pda, _, _) = Self::create_program_address(program_id, data_account.bump, data_account.ncn)?;
+        let (expected_pda, _, _) =
+            Self::create_program_address(program_id, data_account.bump, data_account.ncn)?;
 
         check_account(
             program_id,
@@ -64,10 +77,10 @@ impl JitoAccount for Consensus {
             &expected_pda,
             Some(Self::DISCRIMINATOR),
             expect_writable,
-            check_admin
+            check_admin,
         )?;
 
-        if let Some(_) = check_admin {
+        if check_admin.is_some() {
             msg!("No admin in account");
             return Err(ProgramError::InvalidAccountData);
         }
@@ -85,12 +98,10 @@ impl JitoAccount for Consensus {
 }
 
 impl Consensus {
-
     pub fn initialize(&mut self, ncn: &Pubkey, bump: u8) -> Result<(), ProgramError> {
         if self.is_initialized() {
             return Err(ProgramError::AccountAlreadyInitialized);
         }
-
 
         self.discriminator = PodOption::some(PodU64::from(Self::DISCRIMINATOR));
 

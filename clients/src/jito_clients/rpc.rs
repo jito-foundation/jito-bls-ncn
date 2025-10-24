@@ -19,18 +19,18 @@ pub struct JitoRpcClient {
 }
 
 impl JitoRpcClient {
-    pub fn new(rpc_url: &String) -> Self {
+    pub fn new(rpc_url: String) -> Self {
         JitoRpcClient {
             client_type: JitoClientType::RPC,
-            rpc_client: RpcClient::new(rpc_url.clone()),
+            rpc_client: RpcClient::new(rpc_url),
             keypair: Keypair::new(),
         }
     }
 
-    pub fn new_with_keypair(rpc_url: &String, keypair: Keypair) -> Self {
+    pub fn new_with_keypair(rpc_url: String, keypair: Keypair) -> Self {
         JitoRpcClient {
             client_type: JitoClientType::RPC,
-            rpc_client: RpcClient::new(rpc_url.clone()),
+            rpc_client: RpcClient::new(rpc_url),
             keypair,
         }
     }
@@ -105,17 +105,17 @@ impl JitoClient for JitoRpcClient {
 
     async fn test_warp_to_slot(&mut self, _: u64) -> Result<()> {
         error!("Warp to slot not supported on RPC client");
-        return Err(anyhow!("Warp to slot not supported"));
+        Err(anyhow!("Warp to slot not supported"))
     }
 
     async fn test_warp_to_slot_incremental(&mut self, _: u64) -> Result<()> {
         error!("Warp to slot incremental not supported on RPC client");
-        return Err(anyhow!("Warp to slot incremental not supported"));
+        Err(anyhow!("Warp to slot incremental not supported"))
     }
 
     async fn test_set_account(&mut self, _: &Pubkey, _: &Account) -> Result<()> {
         error!("Set account not supported on RPC client");
-        return Err(anyhow!("Time travel not supported"));
+        Err(anyhow!("Time travel not supported"))
     }
 
     async fn test_airdrop(&mut self, address: &Pubkey, lamports: u64) -> Result<()> {

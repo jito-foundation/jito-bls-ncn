@@ -6,8 +6,8 @@ use solana_pubkey::Pubkey;
 use crate::{
     accounts::bls_operator::BlsOperator,
     bls::solana_bls::{add_g1, sub_g1},
-    pod::{PodOption, PodU16, PodU64},
     discriminators::Discriminators,
+    pod::{PodOption, PodU16, PodU64},
     utils::{check_account, load_account, JitoAccount},
 };
 
@@ -42,14 +42,21 @@ impl JitoAccount for RollingSnapshot {
         vec![Self::SEED.to_vec(), ncn.to_bytes().to_vec()]
     }
 
-    fn offchain_find_program_address(program_id: &Pubkey, inputs: Self::SeedInputs) -> (Pubkey, u8, Vec<Vec<u8>>) {
+    fn offchain_find_program_address(
+        program_id: &Pubkey,
+        inputs: Self::SeedInputs,
+    ) -> (Pubkey, u8, Vec<Vec<u8>>) {
         let seeds = Self::seeds(inputs);
         let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
         let (pda, bump) = Pubkey::find_program_address(&seeds_iter, program_id);
         (pda, bump, seeds)
     }
 
-    fn create_program_address(program_id: &Pubkey, bump: u8, inputs: Self::SeedInputs) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError> {
+    fn create_program_address(
+        program_id: &Pubkey,
+        bump: u8,
+        inputs: Self::SeedInputs,
+    ) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError> {
         let mut seeds = Self::seeds(inputs);
         seeds.push(vec![bump]);
         let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
@@ -57,10 +64,16 @@ impl JitoAccount for RollingSnapshot {
         Ok((pda, bump, seeds))
     }
 
-    fn check(program_id: &Pubkey, account: &AccountInfo, expect_writable: bool, check_admin: Option<&AccountInfo>) -> Result<(), ProgramError> {
+    fn check(
+        program_id: &Pubkey,
+        account: &AccountInfo,
+        expect_writable: bool,
+        check_admin: Option<&AccountInfo>,
+    ) -> Result<(), ProgramError> {
         let data = account.data.borrow();
         let data_account = unsafe { load_account::<Self>(&data)? };
-        let (expected_pda, _, _) = Self::create_program_address(program_id, data_account.bump, data_account.ncn)?;
+        let (expected_pda, _, _) =
+            Self::create_program_address(program_id, data_account.bump, data_account.ncn)?;
 
         check_account(
             program_id,
@@ -68,10 +81,10 @@ impl JitoAccount for RollingSnapshot {
             &expected_pda,
             Some(Self::DISCRIMINATOR),
             expect_writable,
-            check_admin
+            check_admin,
         )?;
 
-        if let Some(_) = check_admin {
+        if check_admin.is_some() {
             msg!("No admin in account");
             return Err(ProgramError::InvalidAccountData);
         }

@@ -1,10 +1,10 @@
 use core::fmt;
 
+use crate::utils::load_account;
 use solana_account_info::AccountInfo;
 use solana_msg::msg;
-use solana_program_error::{ProgramError};
+use solana_program_error::ProgramError;
 use solana_pubkey::Pubkey;
-use crate::utils::load_account;
 
 use crate::{
     bls::solana_bls::verify_g1_g2,
@@ -48,14 +48,21 @@ impl JitoAccount for BlsOperator {
         vec![Self::SEED.to_vec(), operator.to_bytes().to_vec()]
     }
 
-    fn offchain_find_program_address(program_id: &Pubkey, inputs: Self::SeedInputs) -> (Pubkey, u8, Vec<Vec<u8>>) {
+    fn offchain_find_program_address(
+        program_id: &Pubkey,
+        inputs: Self::SeedInputs,
+    ) -> (Pubkey, u8, Vec<Vec<u8>>) {
         let seeds = Self::seeds(inputs);
         let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
         let (pda, bump) = Pubkey::find_program_address(&seeds_iter, program_id);
         (pda, bump, seeds)
     }
 
-    fn create_program_address(program_id: &Pubkey, bump: u8, inputs: Self::SeedInputs) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError> {
+    fn create_program_address(
+        program_id: &Pubkey,
+        bump: u8,
+        inputs: Self::SeedInputs,
+    ) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError> {
         let mut seeds = Self::seeds(inputs);
         seeds.push(vec![bump]);
         let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
@@ -63,10 +70,16 @@ impl JitoAccount for BlsOperator {
         Ok((pda, bump, seeds))
     }
 
-    fn check(program_id: &Pubkey, account: &AccountInfo, expect_writable: bool, check_admin: Option<&AccountInfo>) -> Result<(), ProgramError> {
+    fn check(
+        program_id: &Pubkey,
+        account: &AccountInfo,
+        expect_writable: bool,
+        check_admin: Option<&AccountInfo>,
+    ) -> Result<(), ProgramError> {
         let data = account.data.borrow();
         let data_account = unsafe { load_account::<Self>(&data)? };
-        let (expected_pda, _, _) = Self::create_program_address(program_id, data_account.bump, data_account.operator)?;
+        let (expected_pda, _, _) =
+            Self::create_program_address(program_id, data_account.bump, data_account.operator)?;
 
         check_account(
             program_id,
@@ -74,7 +87,7 @@ impl JitoAccount for BlsOperator {
             &expected_pda,
             Some(Self::DISCRIMINATOR),
             expect_writable,
-            check_admin
+            check_admin,
         )?;
 
         if let Some(admin) = check_admin {
@@ -96,7 +109,6 @@ impl JitoAccount for BlsOperator {
 }
 
 impl BlsOperator {
-
     #[allow(clippy::too_many_arguments)]
     pub fn initialize(
         &mut self,

@@ -1,9 +1,9 @@
 //! Slot toggled state tracker, useful for activations and deactivations of certain features
 //! based on slot time.
 
-use std::cmp::Ordering;
 use crate::pod::PodU64;
 use solana_program::program_error::ProgramError;
+use std::cmp::Ordering;
 
 /// SlotToggle is a state tracker that allows for activation and deactivation of certain features
 /// based on slot time.
