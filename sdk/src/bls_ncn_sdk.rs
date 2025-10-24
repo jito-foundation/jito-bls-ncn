@@ -1,7 +1,10 @@
 use jito_bls_ncn_core::{
     accounts::*,
     bls::solana_bls_interface::SolanaBN254Keypair,
-    instructions::{InitializeBlsOperatorIxData, InitializeConfigIxData, InitializeRollingSnapshotIxData, VoteIxData},
+    instructions::{
+        InitializeBlsOperatorIxData, InitializeConfigIxData, InitializeRollingSnapshotIxData,
+        VoteIxData,
+    },
     utils::{JitoAccount, JitoIxData},
 };
 use solana_instruction::{AccountMeta, Instruction};

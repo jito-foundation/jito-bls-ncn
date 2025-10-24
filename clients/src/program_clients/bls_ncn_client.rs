@@ -9,7 +9,7 @@ use jito_bls_ncn_core::{
 };
 use jito_bls_ncn_sdk::bls_ncn_sdk::{
     bls_operator_address, config_address, consensus_address, initialize_bls_operator_ix,
-    initialize_rolling_snapshot_ix, rolling_snapshot_address, vote_ix, initialize_config_ix,
+    initialize_config_ix, initialize_rolling_snapshot_ix, rolling_snapshot_address, vote_ix,
 };
 use solana_pubkey::Pubkey;
 use solana_signer::Signer;
@@ -56,18 +56,11 @@ pub async fn get_rolling_snapshot<T: JitoClient>(
     Ok(*account)
 }
 
-pub async fn initialize_config<T: JitoClient>(
-    jito_client: &T,
-    ncn: &Pubkey,
-) -> Result<()> {
+pub async fn initialize_config<T: JitoClient>(jito_client: &T, ncn: &Pubkey) -> Result<()> {
     let payer = jito_client.keypair().insecure_clone();
     let blockhash = jito_client.get_recent_blockhash().await?;
     let tx = Transaction::new_signed_with_payer(
-        &[initialize_config_ix(
-            ncn,
-            &payer.pubkey(),
-            &payer.pubkey(),
-        )],
+        &[initialize_config_ix(ncn, &payer.pubkey(), &payer.pubkey())],
         Some(&payer.pubkey()),
         &[&payer],
         blockhash,

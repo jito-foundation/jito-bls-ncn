@@ -3,7 +3,9 @@
 //! This module provides client-side SDK functionality for the Jito Restaking program.
 
 use crate::{
-    pod::{PodU16, PodU64}, programs::slot_toggle_core::SlotToggle, utils::{check_account, load_account, JitoAccount}
+    pod::{PodU16, PodU64},
+    programs::slot_toggle_core::SlotToggle,
+    utils::{check_account, load_account, JitoAccount},
 };
 use solana_account_info::AccountInfo;
 use solana_program_error::ProgramError;
