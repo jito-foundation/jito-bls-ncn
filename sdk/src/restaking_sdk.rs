@@ -10,7 +10,6 @@ use jito_bls_ncn_core::{
 };
 
 // ----------------------- PROGRAM ID -----------------------
-// TODO: Replace with actual program ID
 pub fn id() -> Pubkey {
     pubkey!("RestkWeAVL8fRGgzhfeoqFhsqKRchg6aa1XrcH96z4Q")
 }

@@ -1,20 +1,17 @@
 use anyhow::Result;
 use jito_bls_ncn_core::{
-    programs::{
-        restaking_core::{
-            Config, Ncn, NcnOperatorState, NcnVaultTicket, Operator, OperatorVaultTicket,
-        },
-        restaking_sdk::{
-            config_address, initialize_config_ix, initialize_ncn_ix,
-            initialize_ncn_operator_state_ix, initialize_ncn_vault_ticket_ix,
-            initialize_operator_ix, initialize_operator_vault_ticket_ix, ncn_address,
-            ncn_cooldown_operator_ix, ncn_operator_state_address, ncn_set_admin_ix,
-            ncn_vault_ticket_address, ncn_warmup_operator_ix, operator_address,
-            operator_cooldown_ncn_ix, operator_set_fee_ix, operator_vault_ticket_address,
-            operator_warmup_ncn_ix, warmup_ncn_vault_ticket_ix, warmup_operator_vault_ticket_ix,
-        },
+    programs::restaking_core::{
+        Config, Ncn, NcnOperatorState, NcnVaultTicket, Operator, OperatorVaultTicket,
     },
     utils::load_account,
+};
+use jito_bls_ncn_sdk::restaking_sdk::{
+    config_address, initialize_config_ix, initialize_ncn_ix, initialize_ncn_operator_state_ix,
+    initialize_ncn_vault_ticket_ix, initialize_operator_ix, initialize_operator_vault_ticket_ix,
+    ncn_address, ncn_cooldown_operator_ix, ncn_operator_state_address, ncn_set_admin_ix,
+    ncn_vault_ticket_address, ncn_warmup_operator_ix, operator_address, operator_cooldown_ncn_ix,
+    operator_set_fee_ix, operator_vault_ticket_address, operator_warmup_ncn_ix,
+    warmup_ncn_vault_ticket_ix, warmup_operator_vault_ticket_ix,
 };
 use solana_keypair::Keypair;
 use solana_pubkey::Pubkey;
@@ -122,7 +119,7 @@ pub async fn initialize_config<T: JitoClient>(
     config: &Pubkey,
     config_admin: &Keypair,
 ) -> Result<()> {
-    let vault_program = jito_bls_ncn_core::programs::vault_sdk::id();
+    let vault_program = jito_bls_ncn_sdk::vault_sdk::id();
     let blockhash = jito_client.get_recent_blockhash().await?;
     let tx = Transaction::new_signed_with_payer(
         &[initialize_config_ix(

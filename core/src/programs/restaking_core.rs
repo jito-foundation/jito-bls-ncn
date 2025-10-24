@@ -3,13 +3,11 @@
 //! This module provides client-side SDK functionality for the Jito Restaking program.
 
 use crate::{
-    pod::{PodU16, PodU64},
-    utils::{check_account, load_account, JitoAccount},
+    pod::{PodU16, PodU64}, programs::slot_toggle_core::SlotToggle, utils::{check_account, load_account, JitoAccount}
 };
 use solana_account_info::AccountInfo;
-use solana_msg::msg;
 use solana_program_error::ProgramError;
-use solana_pubkey::Pubkey;
+use solana_pubkey::{pubkey, Pubkey};
 
 // ----------------------- CONSTANTS -----------------------
 
@@ -18,6 +16,10 @@ pub const MAX_BPS: u16 = 10_000;
 
 /// Default slots per epoch
 pub const DEFAULT_SLOTS_PER_EPOCH: u64 = 432_000;
+
+pub fn id() -> Pubkey {
+    pubkey!("RestkWeAVL8fRGgzhfeoqFhsqKRchg6aa1XrcH96z4Q")
+}
 
 // ----------------------- DISCRIMINATORS -----------------------
 
@@ -87,7 +89,6 @@ impl JitoAccount for Config {
         program_id: &Pubkey,
         account: &AccountInfo,
         expect_writable: bool,
-        check_admin: Option<&AccountInfo>,
     ) -> Result<(), ProgramError> {
         let data = account.data.borrow();
         let data_account = unsafe { load_account::<Self>(&data)? };
@@ -99,14 +100,7 @@ impl JitoAccount for Config {
             &expected_pda,
             Some(Self::DISCRIMINATOR),
             expect_writable,
-            check_admin,
         )?;
-
-        if let Some(admin) = check_admin {
-            if admin.key != &data_account.admin {
-                return Err(ProgramError::InvalidAccountData);
-            }
-        }
 
         Ok(())
     }
@@ -178,7 +172,6 @@ impl JitoAccount for Ncn {
         program_id: &Pubkey,
         account: &AccountInfo,
         expect_writable: bool,
-        check_admin: Option<&AccountInfo>,
     ) -> Result<(), ProgramError> {
         let data = account.data.borrow();
         let data_account = unsafe { load_account::<Self>(&data)? };
@@ -191,14 +184,7 @@ impl JitoAccount for Ncn {
             &expected_pda,
             Some(Self::DISCRIMINATOR),
             expect_writable,
-            check_admin,
         )?;
-
-        if let Some(admin) = check_admin {
-            if admin.key != &data_account.admin {
-                return Err(ProgramError::InvalidAccountData);
-            }
-        }
 
         Ok(())
     }
@@ -267,7 +253,6 @@ impl JitoAccount for Operator {
         program_id: &Pubkey,
         account: &AccountInfo,
         expect_writable: bool,
-        check_admin: Option<&AccountInfo>,
     ) -> Result<(), ProgramError> {
         let data = account.data.borrow();
         let data_account = unsafe { load_account::<Self>(&data)? };
@@ -280,14 +265,7 @@ impl JitoAccount for Operator {
             &expected_pda,
             Some(Self::DISCRIMINATOR),
             expect_writable,
-            check_admin,
         )?;
-
-        if let Some(admin) = check_admin {
-            if admin.key != &data_account.admin {
-                return Err(ProgramError::InvalidAccountData);
-            }
-        }
 
         Ok(())
     }
@@ -307,8 +285,8 @@ pub struct NcnOperatorState {
     pub ncn: Pubkey,
     pub operator: Pubkey,
     pub index: PodU64,
-    pub ncn_opt_in_state: PodU64,      // SlotToggle
-    pub operator_opt_in_state: PodU64, // SlotToggle
+    pub ncn_opt_in_state: SlotToggle,
+    pub operator_opt_in_state: SlotToggle,
     pub bump: u8,
     pub reserved: [u8; 263],
 }
@@ -355,7 +333,6 @@ impl JitoAccount for NcnOperatorState {
         program_id: &Pubkey,
         account: &AccountInfo,
         expect_writable: bool,
-        check_admin: Option<&AccountInfo>,
     ) -> Result<(), ProgramError> {
         let data = account.data.borrow();
         let data_account = unsafe { load_account::<Self>(&data)? };
@@ -371,13 +348,7 @@ impl JitoAccount for NcnOperatorState {
             &expected_pda,
             Some(Self::DISCRIMINATOR),
             expect_writable,
-            check_admin,
         )?;
-
-        if check_admin.is_some() {
-            msg!("No admin in account");
-            return Err(ProgramError::InvalidAccountData);
-        }
 
         Ok(())
     }
@@ -397,7 +368,7 @@ pub struct OperatorVaultTicket {
     pub operator: Pubkey,
     pub vault: Pubkey,
     pub index: PodU64,
-    pub state: PodU64, // SlotToggle
+    pub state: SlotToggle,
     pub bump: u8,
     pub reserved: [u8; 263],
 }
@@ -444,7 +415,6 @@ impl JitoAccount for OperatorVaultTicket {
         program_id: &Pubkey,
         account: &AccountInfo,
         expect_writable: bool,
-        check_admin: Option<&AccountInfo>,
     ) -> Result<(), ProgramError> {
         let data = account.data.borrow();
         let data_account = unsafe { load_account::<Self>(&data)? };
@@ -460,13 +430,7 @@ impl JitoAccount for OperatorVaultTicket {
             &expected_pda,
             Some(Self::DISCRIMINATOR),
             expect_writable,
-            check_admin,
         )?;
-
-        if check_admin.is_some() {
-            msg!("No admin in account");
-            return Err(ProgramError::InvalidAccountData);
-        }
 
         Ok(())
     }
@@ -486,7 +450,7 @@ pub struct NcnVaultTicket {
     pub ncn: Pubkey,
     pub vault: Pubkey,
     pub index: PodU64,
-    pub state: PodU64, // SlotToggle
+    pub state: SlotToggle,
     pub bump: u8,
     pub reserved: [u8; 263],
 }
@@ -533,7 +497,6 @@ impl JitoAccount for NcnVaultTicket {
         program_id: &Pubkey,
         account: &AccountInfo,
         expect_writable: bool,
-        check_admin: Option<&AccountInfo>,
     ) -> Result<(), ProgramError> {
         let data = account.data.borrow();
         let data_account = unsafe { load_account::<Self>(&data)? };
@@ -549,13 +512,7 @@ impl JitoAccount for NcnVaultTicket {
             &expected_pda,
             Some(Self::DISCRIMINATOR),
             expect_writable,
-            check_admin,
         )?;
-
-        if check_admin.is_some() {
-            msg!("No admin in account");
-            return Err(ProgramError::InvalidAccountData);
-        }
 
         Ok(())
     }
@@ -577,7 +534,7 @@ pub struct NcnVaultSlasherTicket {
     pub slasher: Pubkey,
     pub max_slashable_per_epoch: PodU64,
     pub index: PodU64,
-    pub state: PodU64, // SlotToggle
+    pub state: SlotToggle,
     pub bump: u8,
     pub reserved: [u8; 263],
 }
@@ -625,7 +582,6 @@ impl JitoAccount for NcnVaultSlasherTicket {
         program_id: &Pubkey,
         account: &AccountInfo,
         expect_writable: bool,
-        check_admin: Option<&AccountInfo>,
     ) -> Result<(), ProgramError> {
         let data = account.data.borrow();
         let data_account = unsafe { load_account::<Self>(&data)? };
@@ -641,13 +597,7 @@ impl JitoAccount for NcnVaultSlasherTicket {
             &expected_pda,
             Some(Self::DISCRIMINATOR),
             expect_writable,
-            check_admin,
         )?;
-
-        if check_admin.is_some() {
-            msg!("No admin in account");
-            return Err(ProgramError::InvalidAccountData);
-        }
 
         Ok(())
     }

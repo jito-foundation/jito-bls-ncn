@@ -53,10 +53,8 @@ pub async fn add_operators_to_test_ncn<T: JitoClient>(
             let operator_base = Keypair::new();
             let operator_admin = jito_client.keypair().insecure_clone();
             let (operator_pubkey, _, _) =
-                jito_bls_ncn_core::programs::restaking_sdk::operator_address(
-                    &operator_base.pubkey(),
-                );
-            let (config, _, _) = jito_bls_ncn_core::programs::restaking_sdk::config_address();
+                jito_bls_ncn_sdk::restaking_sdk::operator_address(&operator_base.pubkey());
+            let (config, _, _) = jito_bls_ncn_sdk::restaking_sdk::config_address();
 
             jito_client
                 .test_airdrop(&operator_admin.pubkey(), 1_000_000_000)
@@ -150,11 +148,10 @@ pub async fn add_vaults_to_test_ncn<T: JitoClient>(
 
             let initialize_token_amount = 1_000_000;
 
-            let (vault, _, _) =
-                jito_bls_ncn_core::programs::vault_sdk::vault_address(&base.pubkey());
+            let (vault, _, _) = jito_bls_ncn_sdk::vault_sdk::vault_address(&base.pubkey());
             let (burn_vault, _, _) =
-                jito_bls_ncn_core::programs::vault_sdk::burn_vault_address(&base.pubkey());
-            let (config, _, _) = jito_bls_ncn_core::programs::vault_sdk::config_address();
+                jito_bls_ncn_sdk::vault_sdk::burn_vault_address(&base.pubkey());
+            let (config, _, _) = jito_bls_ncn_sdk::vault_sdk::config_address();
 
             // Airdrop to vault admin
             jito_client

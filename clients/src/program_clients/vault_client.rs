@@ -1,18 +1,15 @@
 use anyhow::{anyhow, Result};
 use jito_bls_ncn_core::{
-    programs::{
-        vault_core::{Config, Vault},
-        vault_sdk::{
-            add_delegation_ix, close_vault_update_state_tracker_ix, config_address,
-            crank_vault_update_state_tracker_ix, initialize_config_ix, initialize_vault_ix,
-            initialize_vault_ncn_ticket_ix, initialize_vault_operator_delegation_ix,
-            initialize_vault_update_state_tracker_ix, mint_to_ix, update_vault_balance_ix,
-            vault_ncn_ticket_address, vault_operator_delegation_address,
-            vault_update_state_tracker_address, warmup_vault_ncn_ticket_ix,
-            WithdrawalAllocationMethod,
-        },
-    },
+    programs::vault_core::{Config, Vault},
     utils::load_account,
+};
+use jito_bls_ncn_sdk::vault_sdk::{
+    add_delegation_ix, close_vault_update_state_tracker_ix, config_address,
+    crank_vault_update_state_tracker_ix, initialize_config_ix, initialize_vault_ix,
+    initialize_vault_ncn_ticket_ix, initialize_vault_operator_delegation_ix,
+    initialize_vault_update_state_tracker_ix, mint_to_ix, update_vault_balance_ix,
+    vault_ncn_ticket_address, vault_operator_delegation_address,
+    vault_update_state_tracker_address, warmup_vault_ncn_ticket_ix, WithdrawalAllocationMethod,
 };
 use solana_keypair::Keypair;
 use solana_pubkey::Pubkey;
@@ -91,7 +88,7 @@ pub async fn get_vault_is_update_needed<T: JitoClient>(
 
 pub async fn test_initialize_config<T: JitoClient>(jito_client: &mut T) -> Result<()> {
     let admin = jito_client.keypair().insecure_clone();
-    let restaking_program = jito_bls_ncn_core::programs::restaking_sdk::id();
+    let restaking_program = jito_bls_ncn_sdk::restaking_sdk::id();
     let (config, _, _) = config_address();
     initialize_config(
         jito_client,
@@ -142,10 +139,9 @@ pub async fn test_initialize_vault<T: JitoClient>(jito_client: &mut T) -> Result
     let fee_bps = 100;
     let decimals = 9;
 
-    let (vault, _, _) = jito_bls_ncn_core::programs::vault_sdk::vault_address(&base.pubkey());
-    let (burn_vault, _, _) =
-        jito_bls_ncn_core::programs::vault_sdk::burn_vault_address(&base.pubkey());
-    let (config, _, _) = jito_bls_ncn_core::programs::vault_sdk::config_address();
+    let (vault, _, _) = jito_bls_ncn_sdk::vault_sdk::vault_address(&base.pubkey());
+    let (burn_vault, _, _) = jito_bls_ncn_sdk::vault_sdk::burn_vault_address(&base.pubkey());
+    let (config, _, _) = jito_bls_ncn_sdk::vault_sdk::config_address();
 
     // Airdrop to vault admin
     jito_client
@@ -258,10 +254,7 @@ pub async fn test_initialize_vault_ncn_ticket<T: JitoClient>(
     let (config, _, _) = config_address();
     let (vault_ncn_ticket, _, _) = vault_ncn_ticket_address(&vault_root.vault_pubkey, ncn);
     let (ncn_vault_ticket, _, _) =
-        jito_bls_ncn_core::programs::restaking_sdk::ncn_vault_ticket_address(
-            ncn,
-            &vault_root.vault_pubkey,
-        );
+        jito_bls_ncn_sdk::restaking_sdk::ncn_vault_ticket_address(ncn, &vault_root.vault_pubkey);
 
     initialize_vault_ncn_ticket(
         jito_client,
@@ -362,7 +355,7 @@ pub async fn test_initialize_vault_operator_delegation<T: JitoClient>(
     let (vault_operator_delegation, _, _) =
         vault_operator_delegation_address(&vault_root.vault_pubkey, operator);
     let (operator_vault_ticket, _, _) =
-        jito_bls_ncn_core::programs::restaking_sdk::operator_vault_ticket_address(
+        jito_bls_ncn_sdk::restaking_sdk::operator_vault_ticket_address(
             operator,
             &vault_root.vault_pubkey,
         );

@@ -65,12 +65,12 @@ async fn create_test_program_client() -> Result<JitoSolanaTestProgramClient> {
     program_test.add_program("jito_bls_ncn_program", id(), None);
     program_test.add_program(
         "jito_vault_program",
-        jito_bls_ncn_core::programs::vault_sdk::id(),
+        jito_bls_ncn_sdk::vault_sdk::id(),
         None,
     );
     program_test.add_program(
         "jito_restaking_program",
-        jito_bls_ncn_core::programs::restaking_sdk::id(),
+        jito_bls_ncn_sdk::restaking_sdk::id(),
         None,
     );
 

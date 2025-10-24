@@ -1,7 +1,6 @@
 use core::fmt;
 
 use solana_account_info::AccountInfo;
-use solana_msg::msg;
 use solana_program_error::ProgramError;
 use solana_pubkey::Pubkey;
 
@@ -64,7 +63,6 @@ impl JitoAccount for Consensus {
         program_id: &Pubkey,
         account: &AccountInfo,
         expect_writable: bool,
-        check_admin: Option<&AccountInfo>,
     ) -> Result<(), ProgramError> {
         let data = account.data.borrow();
         let data_account = unsafe { load_account::<Self>(&data)? };
@@ -77,13 +75,7 @@ impl JitoAccount for Consensus {
             &expected_pda,
             Some(Self::DISCRIMINATOR),
             expect_writable,
-            check_admin,
         )?;
-
-        if check_admin.is_some() {
-            msg!("No admin in account");
-            return Err(ProgramError::InvalidAccountData);
-        }
 
         Ok(())
     }

@@ -28,15 +28,19 @@ pub trait JitoAccount {
         program_id: &Pubkey,
         account: &AccountInfo,
         expect_writable: bool,
-        check_admin: Option<&AccountInfo>,
     ) -> Result<(), ProgramError>;
 
     fn is_initialized(&self) -> bool;
 }
-
-pub trait JitoIxData {
+/// # Safety
+/// Caller must ensure everything is 1 byte aligned
+pub unsafe trait JitoIxData {
     const DISCRIMINATOR: u64;
     const LEN: usize;
+
+    /// # Safety
+    /// Caller must ensure everything is 1 byte aligned
+    unsafe fn to_bytes(&self) -> &[u8];
 }
 
 // pub trait JitoDiscriminator {
@@ -97,6 +101,18 @@ pub unsafe fn load_account_mut_unchecked<T: JitoAccount>(
         return Err(ProgramError::InvalidAccountData);
     }
     Ok(&mut *(bytes.as_mut_ptr() as *mut T))
+}
+
+pub fn load_instruction_discriminator(instruction_data: &[u8]) -> Result<u64, ProgramError> {
+    if instruction_data.len() < 8 {
+        msg!("No IX Discriminator");
+        return Err(ProgramError::InvalidInstructionData);
+    }
+    let instruction_slice: [u8; 8] = instruction_data[..8]
+        .try_into()
+        .map_err(|_| ProgramError::InvalidInstructionData)?;
+    let instruction_u64 = u64::from_le_bytes(instruction_slice);
+    Ok(instruction_u64)
 }
 
 /// # Safety
@@ -180,7 +196,6 @@ pub fn check_account(
     expected_pda: &Pubkey,
     expected_discriminator: Option<u64>,
     expect_writable: bool,
-    check_admin: Option<&AccountInfo>,
 ) -> Result<(), ProgramError> {
     if account.owner.ne(program_id) {
         msg!("Account has an invalid owner");
@@ -212,10 +227,6 @@ pub fn check_account(
     if expect_writable && !account.is_writable {
         msg!("Account is not writable");
         return Err(ProgramError::InvalidAccountData);
-    }
-
-    if let Some(admin) = check_admin {
-        check_signer(admin, false)?;
     }
 
     Ok(())
@@ -372,5 +383,38 @@ pub fn get_realloc_calls(current_size: usize, target_size: usize) -> Result<usiz
             .checked_div(MAX_PERMITTED_DATA_INCREASE)
             .ok_or(ProgramError::ArithmeticOverflow)?;
         Ok(checked_div.saturating_add(1))
+    }
+}
+
+pub fn create_or_realloc<'a, 'info>(
+    account: &'a AccountInfo<'info>,
+    account_size: usize,
+    payer: &'a AccountInfo<'info>,
+    system_program: &'a AccountInfo<'info>,
+    program_owner: &Pubkey,
+    seeds: &[Vec<u8>],
+    rent: &Rent,
+) -> ProgramResult {
+    match check_system_account(account, true) {
+        Ok(()) => {
+            let size = get_new_realloc_size(0, account_size)?;
+            create_account(
+                payer,
+                account,
+                system_program,
+                program_owner,
+                rent,
+                size as u64,
+                seeds,
+            )
+        }
+        Err(_) => {
+            if account.data_len() < account_size {
+                let new_size = get_new_realloc_size(account.data_len(), account_size)?;
+                realloc(account, new_size, payer, rent)
+            } else {
+                Ok(())
+            }
+        }
     }
 }

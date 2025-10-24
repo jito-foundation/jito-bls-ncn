@@ -10,7 +10,7 @@ use crate::{
 use solana_account_info::AccountInfo;
 use solana_msg::msg;
 use solana_program_error::ProgramError;
-use solana_pubkey::Pubkey;
+use solana_pubkey::{pubkey, Pubkey};
 
 // ----------------------- CONSTANTS -----------------------
 
@@ -19,6 +19,10 @@ pub const MAX_BPS: u16 = 10_000;
 
 /// Default slots per epoch
 pub const DEFAULT_SLOTS_PER_EPOCH: u64 = 432_000;
+
+pub fn id() -> Pubkey {
+    pubkey!("Vau1t6sLNxnzB7ZDsef8TLbPLfyZMYXH8WTNqUdm9g8")
+}
 
 // ----------------------- DISCRIMINATORS -----------------------
 
@@ -94,7 +98,6 @@ impl JitoAccount for Config {
         program_id: &Pubkey,
         account: &AccountInfo,
         expect_writable: bool,
-        check_admin: Option<&AccountInfo>,
     ) -> Result<(), ProgramError> {
         let data = account.data.borrow();
         let data_account = unsafe { load_account::<Self>(&data)? };
@@ -106,14 +109,7 @@ impl JitoAccount for Config {
             &expected_pda,
             Some(Self::DISCRIMINATOR),
             expect_writable,
-            check_admin,
         )?;
-
-        if let Some(admin) = check_admin {
-            if admin.key != &data_account.admin {
-                return Err(ProgramError::InvalidAccountData);
-            }
-        }
 
         Ok(())
     }
@@ -162,12 +158,7 @@ impl JitoAccount for BurnVault {
         Ok((pda, bump, seeds))
     }
 
-    fn check(
-        _: &Pubkey,
-        _: &AccountInfo,
-        _: bool,
-        _: Option<&AccountInfo>,
-    ) -> Result<(), ProgramError> {
+    fn check(_: &Pubkey, _: &AccountInfo, _: bool) -> Result<(), ProgramError> {
         msg!("Burn Vault is symbolic, not a data account");
         Err(ProgramError::InvalidAccountData)
     }
@@ -260,7 +251,6 @@ impl JitoAccount for VaultNcnSlasherOperatorTicket {
         program_id: &Pubkey,
         account: &AccountInfo,
         expect_writable: bool,
-        check_admin: Option<&AccountInfo>,
     ) -> Result<(), ProgramError> {
         let data = account.data.borrow();
         let data_account = unsafe { load_account::<Self>(&data)? };
@@ -282,13 +272,7 @@ impl JitoAccount for VaultNcnSlasherOperatorTicket {
             &expected_pda,
             Some(Self::DISCRIMINATOR),
             expect_writable,
-            check_admin,
         )?;
-
-        if check_admin.is_some() {
-            msg!("No admin in account");
-            return Err(ProgramError::InvalidAccountData);
-        }
 
         Ok(())
     }
@@ -358,7 +342,6 @@ impl JitoAccount for VaultNcnSlasherTicket {
         program_id: &Pubkey,
         account: &AccountInfo,
         expect_writable: bool,
-        check_admin: Option<&AccountInfo>,
     ) -> Result<(), ProgramError> {
         let data = account.data.borrow();
         let data_account = unsafe { load_account::<Self>(&data)? };
@@ -374,13 +357,7 @@ impl JitoAccount for VaultNcnSlasherTicket {
             &expected_pda,
             Some(Self::DISCRIMINATOR),
             expect_writable,
-            check_admin,
         )?;
-
-        if check_admin.is_some() {
-            msg!("No admin in account");
-            return Err(ProgramError::InvalidAccountData);
-        }
 
         Ok(())
     }
@@ -447,7 +424,6 @@ impl JitoAccount for VaultNcnTicket {
         program_id: &Pubkey,
         account: &AccountInfo,
         expect_writable: bool,
-        check_admin: Option<&AccountInfo>,
     ) -> Result<(), ProgramError> {
         let data = account.data.borrow();
         let data_account = unsafe { load_account::<Self>(&data)? };
@@ -463,13 +439,7 @@ impl JitoAccount for VaultNcnTicket {
             &expected_pda,
             Some(Self::DISCRIMINATOR),
             expect_writable,
-            check_admin,
         )?;
-
-        if check_admin.is_some() {
-            msg!("No admin in account");
-            return Err(ProgramError::InvalidAccountData);
-        }
 
         Ok(())
     }
@@ -537,7 +507,6 @@ impl JitoAccount for VaultOperatorDelegation {
         program_id: &Pubkey,
         account: &AccountInfo,
         expect_writable: bool,
-        check_admin: Option<&AccountInfo>,
     ) -> Result<(), ProgramError> {
         let data = account.data.borrow();
         let data_account = unsafe { load_account::<Self>(&data)? };
@@ -553,13 +522,7 @@ impl JitoAccount for VaultOperatorDelegation {
             &expected_pda,
             Some(Self::DISCRIMINATOR),
             expect_writable,
-            check_admin,
         )?;
-
-        if check_admin.is_some() {
-            msg!("No admin in account");
-            return Err(ProgramError::InvalidAccountData);
-        }
 
         Ok(())
     }
@@ -627,7 +590,6 @@ impl JitoAccount for VaultStakerWithdrawalTicket {
         program_id: &Pubkey,
         account: &AccountInfo,
         expect_writable: bool,
-        check_admin: Option<&AccountInfo>,
     ) -> Result<(), ProgramError> {
         let data = account.data.borrow();
         let data_account = unsafe { load_account::<Self>(&data)? };
@@ -643,13 +605,7 @@ impl JitoAccount for VaultStakerWithdrawalTicket {
             &expected_pda,
             Some(Self::DISCRIMINATOR),
             expect_writable,
-            check_admin,
         )?;
-
-        if check_admin.is_some() {
-            msg!("No admin in account");
-            return Err(ProgramError::InvalidAccountData);
-        }
 
         Ok(())
     }
@@ -712,12 +668,7 @@ impl JitoAccount for VaultUpdateStateTracker {
         Ok((pda, bump, seeds))
     }
 
-    fn check(
-        _: &Pubkey,
-        _: &AccountInfo,
-        _: bool,
-        _: Option<&AccountInfo>,
-    ) -> Result<(), ProgramError> {
+    fn check(_: &Pubkey, _: &AccountInfo, _: bool) -> Result<(), ProgramError> {
         msg!("No bump in account");
         Err(ProgramError::InvalidAccountData)
 
@@ -831,7 +782,6 @@ impl JitoAccount for Vault {
         program_id: &Pubkey,
         account: &AccountInfo,
         expect_writable: bool,
-        check_admin: Option<&AccountInfo>,
     ) -> Result<(), ProgramError> {
         let data = account.data.borrow();
         let data_account = unsafe { load_account::<Self>(&data)? };
@@ -844,14 +794,7 @@ impl JitoAccount for Vault {
             &expected_pda,
             Some(Self::DISCRIMINATOR),
             expect_writable,
-            check_admin,
         )?;
-
-        if let Some(admin) = check_admin {
-            if admin.key != &data_account.admin {
-                return Err(ProgramError::InvalidAccountData);
-            }
-        }
 
         Ok(())
     }

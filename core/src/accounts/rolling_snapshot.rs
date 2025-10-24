@@ -68,7 +68,6 @@ impl JitoAccount for RollingSnapshot {
         program_id: &Pubkey,
         account: &AccountInfo,
         expect_writable: bool,
-        check_admin: Option<&AccountInfo>,
     ) -> Result<(), ProgramError> {
         let data = account.data.borrow();
         let data_account = unsafe { load_account::<Self>(&data)? };
@@ -81,13 +80,7 @@ impl JitoAccount for RollingSnapshot {
             &expected_pda,
             Some(Self::DISCRIMINATOR),
             expect_writable,
-            check_admin,
         )?;
-
-        if check_admin.is_some() {
-            msg!("No admin in account");
-            return Err(ProgramError::InvalidAccountData);
-        }
 
         Ok(())
     }
@@ -104,12 +97,13 @@ impl JitoAccount for RollingSnapshot {
 impl RollingSnapshot {
     pub const MAX_OPERATORS: u16 = 256;
 
-    pub fn initialize(&mut self) -> Result<(), ProgramError> {
+    pub fn initialize(&mut self, bump: u8) -> Result<(), ProgramError> {
         if self.is_initialized() {
             return Err(ProgramError::AccountAlreadyInitialized);
         }
 
         self.discriminator = PodOption::some(PodU64::from(Self::DISCRIMINATOR));
+        self.bump = bump;
 
         Ok(())
     }

@@ -2,9 +2,14 @@ use crate::{errors::BlsNcnProgramError, pod::PodU64, utils::JitoIxData};
 
 #[repr(u64)]
 pub enum JitoBlsNCNInstructions {
+    InitializeConfig = 0x01,
+    InitializeRollingSnapshot = 0x02,
     InitializeBlsOperator = 0x03,
-    ReallocRollingSnapshot = 0x01,
-    Vote = 0x02,
+
+    RegisterBlsOperator = 0x10,
+    RemoveBlsOperator = 0x11,
+
+    Vote = 0x20,
 }
 
 impl TryFrom<u64> for JitoBlsNCNInstructions {
@@ -12,23 +17,81 @@ impl TryFrom<u64> for JitoBlsNCNInstructions {
 
     fn try_from(value: u64) -> Result<Self, Self::Error> {
         match value {
+            0x01 => Ok(JitoBlsNCNInstructions::InitializeConfig),
+            0x02 => Ok(JitoBlsNCNInstructions::InitializeRollingSnapshot),
             0x03 => Ok(JitoBlsNCNInstructions::InitializeBlsOperator),
-            0x01 => Ok(JitoBlsNCNInstructions::ReallocRollingSnapshot),
-            0x02 => Ok(JitoBlsNCNInstructions::Vote),
+            0x10 => Ok(JitoBlsNCNInstructions::RegisterBlsOperator),
+            0x11 => Ok(JitoBlsNCNInstructions::RemoveBlsOperator),
+            0x20 => Ok(JitoBlsNCNInstructions::Vote),
             _ => Err(BlsNcnProgramError::InvalidInstruction),
         }
     }
 }
 
-// -------------------- REALLOC ROLLING SNAPSHOT ---------------
+// -------------------- INITIALIZE CONFIG ---------------
 
-// #[account(0, writable, name = "config")]
-// #[account(1, name = "ncn")]
-// #[account(2, name = "ncn_fee_wallet")]
-// #[account(3, signer, name = "ncn_admin")]
-// #[account(4, name = "tie_breaker_admin")]
-// #[account(5, writable, name = "account_payer")]
-// #[account(6, name = "system_program")]
+/// [config, ncn, admin, payer, system_program]
+#[repr(C, packed)]
+pub struct InitializeConfigIxData {
+    pub discriminator: PodU64,
+    pub bump: u8,
+}
+
+/// # Safety
+/// Caller must ensure everything is 1 byte aligned
+unsafe impl JitoIxData for InitializeConfigIxData {
+    const DISCRIMINATOR: u64 = JitoBlsNCNInstructions::InitializeConfig as u64;
+    const LEN: usize = size_of::<Self>();
+
+    /// # Safety
+    /// Caller must ensure everything is 1 byte aligned
+    unsafe fn to_bytes(&self) -> &[u8] {
+        unsafe { crate::utils::ix_data_to_bytes::<Self>(self) }
+    }
+}
+
+impl InitializeConfigIxData {
+    pub fn new(bump: u8) -> Self {
+        Self {
+            discriminator: PodU64::from(Self::DISCRIMINATOR),
+            bump,
+        }
+    }
+}
+
+// -------------------- INITIALIZE ROLLING SNAPSHOT ---------------
+
+/// [rolling_snapshot, ncn, payer, system_program]
+#[repr(C, packed)]
+pub struct InitializeRollingSnapshotIxData {
+    pub discriminator: PodU64,
+    pub bump: u8,
+}
+
+/// # Safety
+/// Caller must ensure everything is 1 byte aligned
+unsafe impl JitoIxData for InitializeRollingSnapshotIxData {
+    const DISCRIMINATOR: u64 = JitoBlsNCNInstructions::InitializeRollingSnapshot as u64;
+    const LEN: usize = size_of::<Self>();
+
+    /// # Safety
+    /// Caller must ensure everything is 1 byte aligned
+    unsafe fn to_bytes(&self) -> &[u8] {
+        unsafe { crate::utils::ix_data_to_bytes::<Self>(self) }
+    }
+}
+
+impl InitializeRollingSnapshotIxData {
+    pub fn new(bump: u8) -> Self {
+        Self {
+            discriminator: PodU64::from(Self::DISCRIMINATOR),
+            bump,
+        }
+    }
+}
+
+// -------------------- INITIALIZE BLS OPERATOR ---------------
+/// [bls_operator, operator, admin, payer, system_program]
 #[repr(C, packed)]
 pub struct InitializeBlsOperatorIxData {
     pub discriminator: PodU64,
@@ -38,9 +101,17 @@ pub struct InitializeBlsOperatorIxData {
     pub socket: [u8; 128],
 }
 
-impl JitoIxData for InitializeBlsOperatorIxData {
+/// # Safety
+/// Caller must ensure everything is 1 byte aligned
+unsafe impl JitoIxData for InitializeBlsOperatorIxData {
     const DISCRIMINATOR: u64 = JitoBlsNCNInstructions::InitializeBlsOperator as u64;
     const LEN: usize = size_of::<Self>();
+
+    /// # Safety
+    /// Caller must ensure everything is 1 byte aligned
+    unsafe fn to_bytes(&self) -> &[u8] {
+        unsafe { crate::utils::ix_data_to_bytes::<Self>(self) }
+    }
 }
 
 impl InitializeBlsOperatorIxData {
@@ -53,67 +124,53 @@ impl InitializeBlsOperatorIxData {
             socket,
         }
     }
-
-    /// # Safety
-    /// Caller must ensure everything is 1 byte aligned
-    pub unsafe fn to_bytes(&self) -> &[u8] {
-        unsafe { crate::utils::ix_data_to_bytes::<Self>(self) }
-    }
 }
 
-// -------------------- REALLOC ROLLING SNAPSHOT ---------------
+// -------------------- REGISTER BLS OPERATOR  -----------------------------
 
-// #[account(0, writable, name = "config")]
-// #[account(1, name = "ncn")]
-// #[account(2, name = "ncn_fee_wallet")]
-// #[account(3, signer, name = "ncn_admin")]
-// #[account(4, name = "tie_breaker_admin")]
-// #[account(5, writable, name = "account_payer")]
-// #[account(6, name = "system_program")]
 #[repr(C, packed)]
-pub struct ReallocRollingSnapshotIxData {
-    pub discriminator: PodU64,
-    pub bump: u8,
+pub struct RegisterBlsOperatorIxData {
+    pub discriminator: u64,
+    pub g1: [u8; 64],
 }
 
-impl JitoIxData for ReallocRollingSnapshotIxData {
-    const DISCRIMINATOR: u64 = JitoBlsNCNInstructions::ReallocRollingSnapshot as u64;
+/// # Safety
+/// Caller must ensure everything is 1 byte aligned
+unsafe impl JitoIxData for RegisterBlsOperatorIxData {
+    const DISCRIMINATOR: u64 = JitoBlsNCNInstructions::RegisterBlsOperator as u64;
     const LEN: usize = size_of::<Self>();
+
+    unsafe fn to_bytes(&self) -> &[u8] {
+        unsafe { crate::utils::ix_data_to_bytes::<Self>(self) }
+    }
 }
 
-impl ReallocRollingSnapshotIxData {
-    pub fn new(bump: u8) -> Self {
+impl RegisterBlsOperatorIxData {
+    pub fn new(g1: [u8; 64]) -> Self {
         Self {
-            discriminator: PodU64::from(Self::DISCRIMINATOR),
-            bump,
+            discriminator: Self::DISCRIMINATOR,
+            g1,
         }
-    }
-
-    /// # Safety
-    /// Caller must ensure everything is 1 byte aligned
-    pub unsafe fn to_bytes(&self) -> &[u8] {
-        unsafe { crate::utils::ix_data_to_bytes::<Self>(self) }
     }
 }
 
 // -------------------- VOTE -----------------------------
 
-// #[account(0, writable, name = "config")]
-// #[account(1, name = "ncn")]
-// #[account(2, name = "ncn_fee_wallet")]
-// #[account(3, signer, name = "ncn_admin")]
-// #[account(4, name = "tie_breaker_admin")]
-// #[account(5, writable, name = "account_payer")]
-// #[account(6, name = "system_program")]
 #[repr(C, packed)]
 pub struct VoteIxData {
     pub discriminator: u64,
     pub g1: [u8; 64],
 }
 
-impl JitoIxData for VoteIxData {
+/// # Safety
+/// Caller must ensure everything is 1 byte aligned
+unsafe impl JitoIxData for VoteIxData {
     const DISCRIMINATOR: u64 = JitoBlsNCNInstructions::Vote as u64;
     const LEN: usize = size_of::<Self>();
+
+    unsafe fn to_bytes(&self) -> &[u8] {
+        unsafe { crate::utils::ix_data_to_bytes::<Self>(self) }
+    }
 }
 
 impl VoteIxData {
@@ -122,11 +179,5 @@ impl VoteIxData {
             discriminator: Self::DISCRIMINATOR,
             g1,
         }
-    }
-
-    /// # Safety
-    /// Caller must ensure everything is 1 byte aligned
-    pub unsafe fn to_bytes(&self) -> &[u8] {
-        unsafe { crate::utils::ix_data_to_bytes::<Self>(self) }
     }
 }

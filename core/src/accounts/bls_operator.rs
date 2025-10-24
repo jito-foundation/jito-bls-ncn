@@ -74,7 +74,6 @@ impl JitoAccount for BlsOperator {
         program_id: &Pubkey,
         account: &AccountInfo,
         expect_writable: bool,
-        check_admin: Option<&AccountInfo>,
     ) -> Result<(), ProgramError> {
         let data = account.data.borrow();
         let data_account = unsafe { load_account::<Self>(&data)? };
@@ -87,14 +86,7 @@ impl JitoAccount for BlsOperator {
             &expected_pda,
             Some(Self::DISCRIMINATOR),
             expect_writable,
-            check_admin,
         )?;
-
-        if let Some(admin) = check_admin {
-            if admin.key != &data_account.admin {
-                return Err(ProgramError::InvalidAccountData);
-            }
-        }
 
         Ok(())
     }

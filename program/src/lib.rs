@@ -1,7 +1,9 @@
 use solana_program::declare_id;
 
 pub mod initialize_bls_operator;
-pub mod realloc_rolling_snapshot;
+pub mod initialize_config;
+pub mod initialize_rolling_snapshot;
+pub mod register_bls_operator;
 pub mod vote;
 
 declare_id!("3Shbx5RwJtmD4EZHu5XmSkqaTxruikKmEU2Qx4BcccU5");
@@ -9,6 +11,7 @@ declare_id!("3Shbx5RwJtmD4EZHu5XmSkqaTxruikKmEU2Qx4BcccU5");
 #[cfg(not(feature = "no-entrypoint"))]
 mod entrypoint {
     use jito_bls_ncn_core::instructions::JitoBlsNCNInstructions;
+    use jito_bls_ncn_core::utils::load_instruction_discriminator;
     use solana_account_info::AccountInfo;
     use solana_msg::msg;
     use solana_program_entrypoint::entrypoint;
@@ -17,7 +20,8 @@ mod entrypoint {
     use solana_pubkey::Pubkey;
 
     use crate::initialize_bls_operator::process_initialize_bls_operator;
-    use crate::realloc_rolling_snapshot::process_realloc_rolling_snapshot;
+    use crate::initialize_rolling_snapshot::process_initialize_rolling_snapshot;
+    use crate::initialize_config::process_initialize_config;
     use crate::vote::process_vote;
 
     use solana_security_txt::security_txt;
@@ -44,20 +48,23 @@ mod entrypoint {
             return Err(ProgramError::IncorrectProgramId);
         }
 
-        let instruction_slice: [u8; 8] = instruction_data[..8]
-            .try_into()
-            .map_err(|_| ProgramError::InvalidAccountData)?;
-        let instruction_u64 = u64::from_le_bytes(instruction_slice);
+        let instruction_u64 = load_instruction_discriminator(instruction_data)?;
         let instruction = JitoBlsNCNInstructions::try_from(instruction_u64)?;
         match instruction {
+            JitoBlsNCNInstructions::InitializeConfig => {
+                msg!("Initializing Config");
+                process_initialize_config(program_id, accounts, instruction_data)
+            }
+            JitoBlsNCNInstructions::InitializeRollingSnapshot => {
+                msg!("Reallocating Rolling Snapshot");
+                process_initialize_rolling_snapshot(program_id, accounts, instruction_data)
+            }
             JitoBlsNCNInstructions::InitializeBlsOperator => {
                 msg!("Initializing BLS Operator");
                 process_initialize_bls_operator(program_id, accounts, instruction_data)
             }
-            JitoBlsNCNInstructions::ReallocRollingSnapshot => {
-                msg!("Reallocating Rolling Snapshot");
-                process_realloc_rolling_snapshot(program_id, accounts, instruction_data)
-            }
+            JitoBlsNCNInstructions::RegisterBlsOperator => todo!(),
+            JitoBlsNCNInstructions::RemoveBlsOperator => todo!(),
             JitoBlsNCNInstructions::Vote => {
                 msg!("Voting");
                 process_vote(program_id, accounts, instruction_data)
