@@ -72,13 +72,13 @@ pub struct SolanaBN254G2 {
 
 impl SolanaBN254G2 {
     pub fn new(bytes: &[u8; 128]) -> Result<Self, String> {
-        // Byte layout: [x.c0, x.c1, y.c0, y.c1] (32 bytes each)
-        let x_c0 = Fq::from_be_bytes_mod_order(&bytes[0..32]);
-        let x_c1 = Fq::from_be_bytes_mod_order(&bytes[32..64]);
+        // Byte layout: [x.c1, x.c0, y.c1, y.c0] (32 bytes each)
+        let x_c1 = Fq::from_be_bytes_mod_order(&bytes[0..32]);
+        let x_c0 = Fq::from_be_bytes_mod_order(&bytes[32..64]);
         let x = Fq2::new(x_c0, x_c1);
 
-        let y_c0 = Fq::from_be_bytes_mod_order(&bytes[64..96]);
-        let y_c1 = Fq::from_be_bytes_mod_order(&bytes[96..128]);
+        let y_c1 = Fq::from_be_bytes_mod_order(&bytes[64..96]);
+        let y_c0 = Fq::from_be_bytes_mod_order(&bytes[96..128]);
         let y = Fq2::new(y_c0, y_c1);
 
         let affine_point = G2Affine::new(x, y);
@@ -329,8 +329,6 @@ mod tests {
     #[cfg(test)]
     fn generate_random_bls_private_key() -> [u8; 32] {
         // Generate a random Solana keypair
-
-        use ark_ff::BigInteger;
         let keypair = Keypair::new();
 
         // Get the secret key bytes (first 32 bytes of the keypair)

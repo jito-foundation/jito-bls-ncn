@@ -1,23 +1,23 @@
 use core::fmt;
-use std::mem::size_of;
 
 use solana_account_info::AccountInfo;
 use solana_msg::msg;
-use solana_program_error::ProgramError;
+use solana_program_error::{ProgramError};
 use solana_pubkey::Pubkey;
+use crate::utils::load_account;
 
 use crate::{
     bls::solana_bls::verify_g1_g2,
     discriminators::Discriminators,
     pod::{PodOption, PodU64},
-    utils::{check_account, JitoDataLen, JitoDiscriminator, JitoInitialized},
+    utils::{check_account, JitoAccount},
 };
 
 /// Individual operator account that stores BLS keys for a specific operator in a specific NCN
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct BlsOperator {
-    pub discriminator: PodOption<u8>,
+    pub discriminator: PodOption<PodU64>,
     /// The bump seed for the PDA
     pub bump: u8,
     /// The operator pubkey
@@ -36,18 +36,59 @@ pub struct BlsOperator {
     pub reserved: [u8; 256], // Reserved for future use, must be zeroed
 }
 
-impl JitoDiscriminator for BlsOperator {
-    const DISCRIMINATOR: u8 = Discriminators::BlsOperator as u8;
-}
+impl JitoAccount for BlsOperator {
+    const DISCRIMINATOR: u64 = Discriminators::BlsOperator as u64;
+    const LEN: usize = std::mem::size_of::<Self>();
+    const SEED: &'static [u8] = b"bls_operator";
+    type SeedInputs = Pubkey;
 
-impl JitoDataLen for BlsOperator {
-    const LEN: usize = size_of::<Self>();
-}
+    /// operator
+    fn seeds(inputs: Self::SeedInputs) -> Vec<Vec<u8>> {
+        let operator = inputs;
+        vec![Self::SEED.to_vec(), operator.to_bytes().to_vec()]
+    }
 
-impl JitoInitialized for BlsOperator {
+    fn offchain_find_program_address(program_id: &Pubkey, inputs: Self::SeedInputs) -> (Pubkey, u8, Vec<Vec<u8>>) {
+        let seeds = Self::seeds(inputs);
+        let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
+        let (pda, bump) = Pubkey::find_program_address(&seeds_iter, program_id);
+        (pda, bump, seeds)
+    }
+
+    fn create_program_address(program_id: &Pubkey, bump: u8, inputs: Self::SeedInputs) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError> {
+        let mut seeds = Self::seeds(inputs);
+        seeds.push(vec![bump]);
+        let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
+        let pda = Pubkey::create_program_address(&seeds_iter, program_id)?;
+        Ok((pda, bump, seeds))
+    }
+
+    fn check(program_id: &Pubkey, account: &AccountInfo, expect_writable: bool, check_admin: Option<&AccountInfo>) -> Result<(), ProgramError> {
+        let data = account.data.borrow();
+        let data_account = unsafe { load_account::<Self>(&data)? };
+        let (expected_pda, _, _) = Self::create_program_address(program_id, data_account.bump, data_account.operator)?;
+
+        check_account(
+            program_id,
+            account,
+            &expected_pda,
+            Some(Self::DISCRIMINATOR),
+            expect_writable,
+            check_admin
+        )?;
+
+        if let Some(admin) = check_admin {
+            if admin.key != &data_account.admin {
+                return Err(ProgramError::InvalidAccountData);
+            }
+        }
+
+        Ok(())
+    }
+
     fn is_initialized(&self) -> bool {
         if let Some(discriminator) = self.discriminator() {
-            *discriminator == Self::DISCRIMINATOR
+            (*discriminator).get() == Self::DISCRIMINATOR
         } else {
             false
         }
@@ -55,7 +96,6 @@ impl JitoInitialized for BlsOperator {
 }
 
 impl BlsOperator {
-    pub const SEED: &'static [u8] = b"bls_operator";
 
     #[allow(clippy::too_many_arguments)]
     pub fn initialize(
@@ -72,7 +112,7 @@ impl BlsOperator {
             return Err(ProgramError::InvalidArgument);
         }
 
-        self.discriminator = PodOption::some(Discriminators::BlsOperator as u8);
+        self.discriminator = PodOption::some(PodU64::from(Self::DISCRIMINATOR));
 
         self.operator = *operator;
         self.socket = *socket;
@@ -84,50 +124,7 @@ impl BlsOperator {
         Ok(())
     }
 
-    pub fn seeds(operator: &Pubkey) -> Vec<Vec<u8>> {
-        vec![Self::SEED.to_vec(), operator.to_bytes().to_vec()]
-    }
-
-    pub fn offchain_find_program_address(
-        program_id: &Pubkey,
-        operator: &Pubkey,
-    ) -> (Pubkey, u8, Vec<Vec<u8>>) {
-        let seeds = Self::seeds(operator);
-        let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
-        let (address, bump) = Pubkey::find_program_address(&seeds_iter, program_id);
-        (address, bump, seeds)
-    }
-
-    pub fn create_program_address(
-        program_id: &Pubkey,
-        operator: &Pubkey,
-        bump: u8,
-    ) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError> {
-        let mut seeds = Self::seeds(operator);
-        seeds.push(vec![bump]);
-        let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
-        let address = Pubkey::create_program_address(&seeds_iter, program_id)?;
-        Ok((address, bump, seeds))
-    }
-
-    pub fn load(
-        program_id: &Pubkey,
-        account: &AccountInfo,
-        operator: &Pubkey,
-        expect_writable: bool,
-        bump: u8,
-    ) -> Result<(), ProgramError> {
-        let expected_pda = Self::create_program_address(program_id, operator, bump)?.0;
-        check_account(
-            program_id,
-            account,
-            &expected_pda,
-            Some(Self::DISCRIMINATOR),
-            expect_writable,
-        )
-    }
-
-    pub fn discriminator(&self) -> Option<&u8> {
+    pub fn discriminator(&self) -> Option<&PodU64> {
         self.discriminator.as_ref()
     }
 

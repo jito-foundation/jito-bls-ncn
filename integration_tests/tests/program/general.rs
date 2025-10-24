@@ -2,7 +2,7 @@
 mod tests {
     use crate::fixtures::fixture::{create_test_client};
     use jito_bls_ncn_clients::jito_clients::JitoClient;
-    use jito_bls_ncn_sdk::id;
+    use jito_bls_ncn_sdk::bls_ncn_sdk::id;
     use solana_program::pubkey::Pubkey;
     use solana_program_test::tokio;
     use anyhow::Result;

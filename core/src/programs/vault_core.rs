@@ -2,7 +2,10 @@
 //!
 //! This module provides client-side SDK functionality for the Jito Vault program.
 
-use crate::{pod::{PodU16, PodU64}, programs::slot_toggle_core::SlotToggle, utils::{JitoDataLen, JitoDiscriminator, JitoInitialized}};
+use crate::{pod::{PodU16, PodU64}, programs::slot_toggle_core::SlotToggle, utils::{check_account, get_epoch, load_account, JitoAccount}};
+use solana_account_info::AccountInfo;
+use solana_msg::msg;
+use solana_program_error::ProgramError;
 use solana_pubkey::Pubkey;
 
 // ----------------------- CONSTANTS -----------------------
@@ -17,7 +20,7 @@ pub const DEFAULT_SLOTS_PER_EPOCH: u64 = 432_000;
 
 /// Discriminators for vault accounts
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
+#[repr(u64)]
 pub enum VaultDiscriminator {
     Config = 1,
     Vault = 2,
@@ -50,30 +53,57 @@ pub struct Config {
     pub reserved: [u8; 229],
 }
 
+impl JitoAccount for Config {
+    const DISCRIMINATOR: u64 = VaultDiscriminator::Config as u64;
+    const LEN: usize = std::mem::size_of::<Self>();
+    const SEED: &'static [u8] = b"config";
+    type SeedInputs = ();
 
-impl JitoDiscriminator for Config {
-    const DISCRIMINATOR: u8 = VaultDiscriminator::Config as u8;
-}
-
-impl JitoDataLen for Config {
-    const LEN: usize = std::mem::size_of::<Config>();
-}
-
-impl JitoInitialized for Config {
-    fn is_initialized(&self) -> bool {
-        self.bump != 0
+    /// NA ()
+    fn seeds(_: Self::SeedInputs) -> Vec<Vec<u8>> {
+        vec![Self::SEED.to_vec()]
     }
-}
 
-impl Config {
-    pub const DISCRIMINATOR: u8 = VaultDiscriminator::Config as u8;
-    pub const SEED: &'static [u8] = b"config";
-
-    pub fn find_program_address(program_id: &Pubkey) -> (Pubkey, u8, Vec<Vec<u8>>) {
-        let seeds = vec![Self::SEED.to_vec()];
+    fn offchain_find_program_address(program_id: &Pubkey, inputs: Self::SeedInputs) -> (Pubkey, u8, Vec<Vec<u8>>) {
+        let seeds = Self::seeds(inputs);
         let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
         let (pda, bump) = Pubkey::find_program_address(&seeds_iter, program_id);
         (pda, bump, seeds)
+    }
+
+    fn create_program_address(program_id: &Pubkey, bump: u8, inputs: Self::SeedInputs) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError> {
+        let mut seeds = Self::seeds(inputs);
+        seeds.push(vec![bump]);
+        let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
+        let pda = Pubkey::create_program_address(&seeds_iter, program_id)?;
+        Ok((pda, bump, seeds))
+    }
+
+    fn check(program_id: &Pubkey, account: &AccountInfo, expect_writable: bool, check_admin: Option<&AccountInfo>) -> Result<(), ProgramError> {
+        let data = account.data.borrow();
+        let data_account = unsafe { load_account::<Self>(&data)? };
+        let (expected_pda, _, _) = Self::create_program_address(program_id, data_account.bump, ())?;
+
+        check_account(
+            program_id,
+            account,
+            &expected_pda,
+            Some(Self::DISCRIMINATOR),
+            expect_writable,
+            check_admin,
+        )?;
+
+        if let Some(admin) = check_admin {
+            if admin.key != &data_account.admin {
+                return Err(ProgramError::InvalidAccountData);
+            }
+        }
+
+        Ok(())
+    }
+
+    fn is_initialized(&self) -> bool {
+        self.discriminator.get() == Self::DISCRIMINATOR
     }
 }
 
@@ -82,14 +112,40 @@ impl Config {
 /// Empty PDA to send tokens to "burn"
 pub struct BurnVault {}
 
-impl BurnVault {
-    pub const SEED: &'static [u8] = b"burn_vault";
+impl JitoAccount for BurnVault {
+    const DISCRIMINATOR: u64 = u64::MAX;
+    const LEN: usize = std::mem::size_of::<Self>();
+    const SEED: &'static [u8] = b"burn_vault";
+    type SeedInputs = Pubkey;
 
-    pub fn find_program_address(program_id: &Pubkey, base: &Pubkey) -> (Pubkey, u8, Vec<Vec<u8>>) {
-        let seeds = vec![Self::SEED.to_vec(), base.to_bytes().to_vec()];
+    /// base
+    fn seeds(inputs: Self::SeedInputs) -> Vec<Vec<u8>> {
+        let base = inputs;
+        vec![Self::SEED.to_vec(), base.to_bytes().to_vec()]
+    }
+
+    fn offchain_find_program_address(program_id: &Pubkey, inputs: Self::SeedInputs) -> (Pubkey, u8, Vec<Vec<u8>>) {
+        let seeds = Self::seeds(inputs);
         let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
         let (pda, bump) = Pubkey::find_program_address(&seeds_iter, program_id);
         (pda, bump, seeds)
+    }
+
+    fn create_program_address(program_id: &Pubkey, bump: u8, inputs: Self::SeedInputs) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError> {
+        let mut seeds = Self::seeds(inputs);
+        seeds.push(vec![bump]);
+        let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
+        let pda = Pubkey::create_program_address(&seeds_iter, program_id)?;
+        Ok((pda, bump, seeds))
+    }
+
+    fn check(_: &Pubkey, _: &AccountInfo, _: bool, _: Option<&AccountInfo>) -> Result<(), ProgramError> {
+        msg!("Burn Vault is symbolic, not a data account");
+        Err(ProgramError::InvalidAccountData)
+    }
+
+    fn is_initialized(&self) -> bool {
+        false
     }
 }
 
@@ -130,31 +186,61 @@ pub struct VaultNcnSlasherOperatorTicket {
     pub reserved: [u8; 263],
 }
 
-impl VaultNcnSlasherOperatorTicket {
-    pub const DISCRIMINATOR: u8 = VaultDiscriminator::VaultNcnSlasherOperatorTicket as u8;
-    pub const SEED: &'static [u8] = b"vault_ncn_slasher_operator";
+impl JitoAccount for VaultNcnSlasherOperatorTicket {
+    const DISCRIMINATOR: u64 = VaultDiscriminator::VaultNcnSlasherOperatorTicket as u64;
+    const LEN: usize = std::mem::size_of::<Self>();
+    const SEED: &'static [u8] = b"vault_ncn_slasher_operator";
+    type SeedInputs = (Pubkey, Pubkey, Pubkey, Pubkey, u64);
 
-    pub fn find_program_address(
-        program_id: &Pubkey,
-        vault: &Pubkey,
-        ncn: &Pubkey,
-        slasher: &Pubkey,
-        operator: &Pubkey,
-        epoch: u64,
-    ) -> (Pubkey, u8, Vec<Vec<u8>>) {
-        let seeds = vec![
-            Self::SEED.to_vec(),
-            vault.to_bytes().to_vec(),
-            ncn.to_bytes().to_vec(),
-            slasher.to_bytes().to_vec(),
-            operator.to_bytes().to_vec(),
-            epoch.to_le_bytes().to_vec(),
-        ];
+    /// vault, ncn, slasher, operator, epoch
+    /// Note: check if epoch should be `le`
+    fn seeds(inputs: Self::SeedInputs) -> Vec<Vec<u8>> {
+        let (vault, ncn, slasher, operator, epoch) = inputs;
+        vec![Self::SEED.to_vec(), vault.to_bytes().to_vec(), ncn.to_bytes().to_vec(), slasher.to_bytes().to_vec(), operator.to_bytes().to_vec(), epoch.to_le_bytes().to_vec()]
+    }
+
+    fn offchain_find_program_address(program_id: &Pubkey, inputs: Self::SeedInputs) -> (Pubkey, u8, Vec<Vec<u8>>) {
+        let seeds = Self::seeds(inputs);
         let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
         let (pda, bump) = Pubkey::find_program_address(&seeds_iter, program_id);
         (pda, bump, seeds)
     }
+
+    fn create_program_address(program_id: &Pubkey, bump: u8, inputs: Self::SeedInputs) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError> {
+        let mut seeds = Self::seeds(inputs);
+        seeds.push(vec![bump]);
+        let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
+        let pda = Pubkey::create_program_address(&seeds_iter, program_id)?;
+        Ok((pda, bump, seeds))
+    }
+
+    fn check(program_id: &Pubkey, account: &AccountInfo, expect_writable: bool, check_admin: Option<&AccountInfo>) -> Result<(), ProgramError> {
+        let data = account.data.borrow();
+        let data_account = unsafe { load_account::<Self>(&data)? };
+        let (expected_pda, _, _) = Self::create_program_address(program_id, data_account.bump, (data_account.vault, data_account.ncn, data_account.slasher, data_account.operator, data_account.epoch.get()))?;
+
+        check_account(
+            program_id,
+            account,
+            &expected_pda,
+            Some(Self::DISCRIMINATOR),
+            expect_writable,
+            check_admin,
+        )?;
+
+        if let Some(_) = check_admin {
+            msg!("No admin in account");
+            return Err(ProgramError::InvalidAccountData);
+        }
+
+        Ok(())
+    }
+
+    fn is_initialized(&self) -> bool {
+        self.discriminator.get() == Self::DISCRIMINATOR
+    }
 }
+
 
 // ----------------------- VAULT NCN SLASHER TICKET -----------------------
 
@@ -173,25 +259,57 @@ pub struct VaultNcnSlasherTicket {
     pub reserved: [u8; 263],
 }
 
-impl VaultNcnSlasherTicket {
-    pub const DISCRIMINATOR: u8 = VaultDiscriminator::VaultNcnSlasherTicket as u8;
-    pub const SEED: &'static [u8] = b"vault_slasher_ticket";
+impl JitoAccount for VaultNcnSlasherTicket {
+    const DISCRIMINATOR: u64 = VaultDiscriminator::VaultNcnSlasherTicket as u64;
+    const LEN: usize = std::mem::size_of::<Self>();
+    const SEED: &'static [u8] = b"vault_slasher_ticket";
+    type SeedInputs = (Pubkey, Pubkey, Pubkey);
 
-    pub fn find_program_address(
-        program_id: &Pubkey,
-        vault: &Pubkey,
-        ncn: &Pubkey,
-        slasher: &Pubkey,
-    ) -> (Pubkey, u8, Vec<Vec<u8>>) {
-        let seeds = vec![
-            Self::SEED.to_vec(),
-            vault.to_bytes().to_vec(),
-            ncn.to_bytes().to_vec(),
-            slasher.to_bytes().to_vec(),
-        ];
+    /// vault, ncn, slasher
+    fn seeds(inputs: Self::SeedInputs) -> Vec<Vec<u8>> {
+        let (vault, ncn, slasher) = inputs;
+        vec![Self::SEED.to_vec(), vault.to_bytes().to_vec(), ncn.to_bytes().to_vec(), slasher.to_bytes().to_vec()]
+    }
+
+    fn offchain_find_program_address(program_id: &Pubkey, inputs: Self::SeedInputs) -> (Pubkey, u8, Vec<Vec<u8>>) {
+        let seeds = Self::seeds(inputs);
         let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
         let (pda, bump) = Pubkey::find_program_address(&seeds_iter, program_id);
         (pda, bump, seeds)
+    }
+
+    fn create_program_address(program_id: &Pubkey, bump: u8, inputs: Self::SeedInputs) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError> {
+        let mut seeds = Self::seeds(inputs);
+        seeds.push(vec![bump]);
+        let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
+        let pda = Pubkey::create_program_address(&seeds_iter, program_id)?;
+        Ok((pda, bump, seeds))
+    }
+
+    fn check(program_id: &Pubkey, account: &AccountInfo, expect_writable: bool, check_admin: Option<&AccountInfo>) -> Result<(), ProgramError> {
+        let data = account.data.borrow();
+        let data_account = unsafe { load_account::<Self>(&data)? };
+        let (expected_pda, _, _) = Self::create_program_address(program_id, data_account.bump, (data_account.vault, data_account.ncn, data_account.slasher))?;
+
+        check_account(
+            program_id,
+            account,
+            &expected_pda,
+            Some(Self::DISCRIMINATOR),
+            expect_writable,
+            check_admin,
+        )?;
+
+        if let Some(_) = check_admin {
+            msg!("No admin in account");
+            return Err(ProgramError::InvalidAccountData);
+        }
+
+        Ok(())
+    }
+
+    fn is_initialized(&self) -> bool {
+        self.discriminator.get() == Self::DISCRIMINATOR
     }
 }
 
@@ -210,23 +328,57 @@ pub struct VaultNcnTicket {
     pub reserved: [u8; 263],
 }
 
-impl VaultNcnTicket {
-    pub const DISCRIMINATOR: u8 = VaultDiscriminator::VaultNcnTicket as u8;
-    pub const SEED: &'static [u8] = b"vault_ncn_ticket";
+impl JitoAccount for VaultNcnTicket {
+    const DISCRIMINATOR: u64 = VaultDiscriminator::VaultNcnTicket as u64;
+    const LEN: usize = std::mem::size_of::<Self>();
+    const SEED: &'static [u8] = b"vault_ncn_ticket";
+    type SeedInputs = (Pubkey, Pubkey);
 
-    pub fn find_program_address(
-        program_id: &Pubkey,
-        vault: &Pubkey,
-        ncn: &Pubkey,
-    ) -> (Pubkey, u8, Vec<Vec<u8>>) {
-        let seeds = vec![
-            Self::SEED.to_vec(),
-            vault.to_bytes().to_vec(),
-            ncn.to_bytes().to_vec(),
-        ];
+    /// vault, ncn
+    fn seeds(inputs: Self::SeedInputs) -> Vec<Vec<u8>> {
+        let (vault, ncn) = inputs;
+        vec![Self::SEED.to_vec(), vault.to_bytes().to_vec(), ncn.to_bytes().to_vec()]
+    }
+
+    fn offchain_find_program_address(program_id: &Pubkey, inputs: Self::SeedInputs) -> (Pubkey, u8, Vec<Vec<u8>>) {
+        let seeds = Self::seeds(inputs);
         let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
         let (pda, bump) = Pubkey::find_program_address(&seeds_iter, program_id);
         (pda, bump, seeds)
+    }
+
+    fn create_program_address(program_id: &Pubkey, bump: u8, inputs: Self::SeedInputs) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError> {
+        let mut seeds = Self::seeds(inputs);
+        seeds.push(vec![bump]);
+        let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
+        let pda = Pubkey::create_program_address(&seeds_iter, program_id)?;
+        Ok((pda, bump, seeds))
+    }
+
+    fn check(program_id: &Pubkey, account: &AccountInfo, expect_writable: bool, check_admin: Option<&AccountInfo>) -> Result<(), ProgramError> {
+        let data = account.data.borrow();
+        let data_account = unsafe { load_account::<Self>(&data)? };
+        let (expected_pda, _, _) = Self::create_program_address(program_id, data_account.bump, (data_account.vault, data_account.ncn))?;
+
+        check_account(
+            program_id,
+            account,
+            &expected_pda,
+            Some(Self::DISCRIMINATOR),
+            expect_writable,
+            check_admin,
+        )?;
+
+        if let Some(_) = check_admin {
+            msg!("No admin in account");
+            return Err(ProgramError::InvalidAccountData);
+        }
+
+        Ok(())
+    }
+
+    fn is_initialized(&self) -> bool {
+        self.discriminator.get() == Self::DISCRIMINATOR
     }
 }
 
@@ -246,23 +398,57 @@ pub struct VaultOperatorDelegation {
     pub reserved: [u8; 263],
 }
 
-impl VaultOperatorDelegation {
-    pub const DISCRIMINATOR: u8 = VaultDiscriminator::VaultOperatorDelegation as u8;
-    pub const SEED: &'static [u8] = b"vault_operator_delegation";
+impl JitoAccount for VaultOperatorDelegation {
+    const DISCRIMINATOR: u64 = VaultDiscriminator::VaultOperatorDelegation as u64;
+    const LEN: usize = std::mem::size_of::<Self>();
+    const SEED: &'static [u8] = b"vault_operator_delegation";
+    type SeedInputs = (Pubkey, Pubkey);
 
-    pub fn find_program_address(
-        program_id: &Pubkey,
-        vault: &Pubkey,
-        operator: &Pubkey,
-    ) -> (Pubkey, u8, Vec<Vec<u8>>) {
-        let seeds = vec![
-            Self::SEED.to_vec(),
-            vault.to_bytes().to_vec(),
-            operator.to_bytes().to_vec(),
-        ];
+    /// vault, operator
+    fn seeds(inputs: Self::SeedInputs) -> Vec<Vec<u8>> {
+        let (vault, operator) = inputs;
+        vec![Self::SEED.to_vec(), vault.to_bytes().to_vec(), operator.to_bytes().to_vec()]
+    }
+
+    fn offchain_find_program_address(program_id: &Pubkey, inputs: Self::SeedInputs) -> (Pubkey, u8, Vec<Vec<u8>>) {
+        let seeds = Self::seeds(inputs);
         let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
         let (pda, bump) = Pubkey::find_program_address(&seeds_iter, program_id);
         (pda, bump, seeds)
+    }
+
+    fn create_program_address(program_id: &Pubkey, bump: u8, inputs: Self::SeedInputs) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError> {
+        let mut seeds = Self::seeds(inputs);
+        seeds.push(vec![bump]);
+        let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
+        let pda = Pubkey::create_program_address(&seeds_iter, program_id)?;
+        Ok((pda, bump, seeds))
+    }
+
+    fn check(program_id: &Pubkey, account: &AccountInfo, expect_writable: bool, check_admin: Option<&AccountInfo>) -> Result<(), ProgramError> {
+        let data = account.data.borrow();
+        let data_account = unsafe { load_account::<Self>(&data)? };
+        let (expected_pda, _, _) = Self::create_program_address(program_id, data_account.bump, (data_account.vault, data_account.operator))?;
+
+        check_account(
+            program_id,
+            account,
+            &expected_pda,
+            Some(Self::DISCRIMINATOR),
+            expect_writable,
+            check_admin,
+        )?;
+
+        if let Some(_) = check_admin {
+            msg!("No admin in account");
+            return Err(ProgramError::InvalidAccountData);
+        }
+
+        Ok(())
+    }
+
+    fn is_initialized(&self) -> bool {
+        self.discriminator.get() == Self::DISCRIMINATOR
     }
 }
 
@@ -282,23 +468,57 @@ pub struct VaultStakerWithdrawalTicket {
     pub reserved: [u8; 263],
 }
 
-impl VaultStakerWithdrawalTicket {
-    pub const DISCRIMINATOR: u8 = VaultDiscriminator::VaultStakerWithdrawalTicket as u8;
-    pub const SEED: &'static [u8] = b"vault_staker_withdrawal_ticket";
+impl JitoAccount for VaultStakerWithdrawalTicket {
+    const DISCRIMINATOR: u64 = VaultDiscriminator::VaultStakerWithdrawalTicket as u64;
+    const LEN: usize = std::mem::size_of::<Self>();
+    const SEED: &'static [u8] = b"vault_staker_withdrawal_ticket";
+    type SeedInputs = (Pubkey, Pubkey);
 
-    pub fn find_program_address(
-        program_id: &Pubkey,
-        vault: &Pubkey,
-        base: &Pubkey,
-    ) -> (Pubkey, u8, Vec<Vec<u8>>) {
-        let seeds = vec![
-            Self::SEED.to_vec(),
-            vault.to_bytes().to_vec(),
-            base.to_bytes().to_vec(),
-        ];
+    /// vault, base
+    fn seeds(inputs: Self::SeedInputs) -> Vec<Vec<u8>> {
+        let (vault, base) = inputs;
+        vec![Self::SEED.to_vec(), vault.to_bytes().to_vec(), base.to_bytes().to_vec()]
+    }
+
+    fn offchain_find_program_address(program_id: &Pubkey, inputs: Self::SeedInputs) -> (Pubkey, u8, Vec<Vec<u8>>) {
+        let seeds = Self::seeds(inputs);
         let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
         let (pda, bump) = Pubkey::find_program_address(&seeds_iter, program_id);
         (pda, bump, seeds)
+    }
+
+    fn create_program_address(program_id: &Pubkey, bump: u8, inputs: Self::SeedInputs) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError> {
+        let mut seeds = Self::seeds(inputs);
+        seeds.push(vec![bump]);
+        let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
+        let pda = Pubkey::create_program_address(&seeds_iter, program_id)?;
+        Ok((pda, bump, seeds))
+    }
+
+    fn check(program_id: &Pubkey, account: &AccountInfo, expect_writable: bool, check_admin: Option<&AccountInfo>) -> Result<(), ProgramError> {
+        let data = account.data.borrow();
+        let data_account = unsafe { load_account::<Self>(&data)? };
+        let (expected_pda, _, _) = Self::create_program_address(program_id, data_account.bump, (data_account.vault, data_account.base))?;
+
+        check_account(
+            program_id,
+            account,
+            &expected_pda,
+            Some(Self::DISCRIMINATOR),
+            expect_writable,
+            check_admin,
+        )?;
+
+        if let Some(_) = check_admin {
+            msg!("No admin in account");
+            return Err(ProgramError::InvalidAccountData);
+        }
+
+        Ok(())
+    }
+
+    fn is_initialized(&self) -> bool {
+        self.discriminator.get() == Self::DISCRIMINATOR
     }
 }
 
@@ -317,23 +537,61 @@ pub struct VaultUpdateStateTracker {
     pub reserved: [u8; 263],
 }
 
-impl VaultUpdateStateTracker {
-    pub const DISCRIMINATOR: u8 = VaultDiscriminator::VaultUpdateStateTracker as u8;
-    pub const SEED: &'static [u8] = b"vault_update_state_tracker";
+impl JitoAccount for VaultUpdateStateTracker {
+    const DISCRIMINATOR: u64 = VaultDiscriminator::VaultUpdateStateTracker as u64;
+    const LEN: usize = std::mem::size_of::<Self>();
+    const SEED: &'static [u8] = b"vault_update_state_tracker";
+    type SeedInputs = (Pubkey, u64);
 
-    pub fn find_program_address(
-        program_id: &Pubkey,
-        vault: &Pubkey,
-        ncn_epoch: u64,
-    ) -> (Pubkey, u8, Vec<Vec<u8>>) {
-        let seeds = vec![
-            Self::SEED.to_vec(),
-            vault.to_bytes().to_vec(),
-            ncn_epoch.to_le_bytes().to_vec(),
-        ];
+    /// vault, ncn_epoch
+    fn seeds(inputs: Self::SeedInputs) -> Vec<Vec<u8>> {
+        let (vault, ncn_epoch) = inputs;
+        vec![Self::SEED.to_vec(), vault.to_bytes().to_vec(), ncn_epoch.to_le_bytes().to_vec()]
+    }
+
+    fn offchain_find_program_address(program_id: &Pubkey, inputs: Self::SeedInputs) -> (Pubkey, u8, Vec<Vec<u8>>) {
+        let seeds = Self::seeds(inputs);
         let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
         let (pda, bump) = Pubkey::find_program_address(&seeds_iter, program_id);
         (pda, bump, seeds)
+    }
+
+    fn create_program_address(program_id: &Pubkey, bump: u8, inputs: Self::SeedInputs) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError> {
+        let mut seeds = Self::seeds(inputs);
+        seeds.push(vec![bump]);
+        let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
+        let pda = Pubkey::create_program_address(&seeds_iter, program_id)?;
+        Ok((pda, bump, seeds))
+    }
+
+    fn check(_: &Pubkey, _: &AccountInfo, _: bool, _: Option<&AccountInfo>) -> Result<(), ProgramError> {
+
+        msg!("No bump in account");
+        Err(ProgramError::InvalidAccountData)
+
+        // let data = account.data.borrow();
+        // let data_account = unsafe { load_account::<Self>(&data)? };
+        // let (expected_pda, _, _) = Self::create_program_address(program_id, data_account.bump, (data_account.vault, data_account.ncn_epoch.get()))?;
+
+        // check_account(
+        //     program_id,
+        //     account,
+        //     &expected_pda,
+        //     Some(Self::DISCRIMINATOR),
+        //     expect_writable,
+        //     check_admin,
+        // )?;
+
+        // if let Some(_) = check_admin {
+        //     msg!("No admin in account");
+        //     return Err(ProgramError::InvalidAccountData);
+        // }
+
+        // Ok(())
+    }
+
+    fn is_initialized(&self) -> bool {
+        self.discriminator.get() == Self::DISCRIMINATOR
     }
 }
 
@@ -383,45 +641,70 @@ pub struct Vault {
     pub reserved: [u8; 251],
 }
 
-impl JitoDiscriminator for Vault {
-    const DISCRIMINATOR: u8 = VaultDiscriminator::Vault as u8;
-}
+impl JitoAccount for Vault {
+    const DISCRIMINATOR: u64 = VaultDiscriminator::Vault as u64;
+    const LEN: usize = std::mem::size_of::<Self>();
+    const SEED: &'static [u8] = b"vault";
+    type SeedInputs = Pubkey;
 
-impl JitoDataLen for Vault {
-    const LEN: usize = std::mem::size_of::<Vault>();
-}
-
-impl JitoInitialized for Vault {
-    fn is_initialized(&self) -> bool {
-        self.bump != 0
+    /// base
+    fn seeds(inputs: Self::SeedInputs) -> Vec<Vec<u8>> {
+        let base = inputs;
+        vec![Self::SEED.to_vec(), base.to_bytes().to_vec()]
     }
-}
 
-impl Vault {
-    pub const DISCRIMINATOR: u8 = VaultDiscriminator::Vault as u8;
-    pub const SEED: &'static [u8] = b"vault";
-
-    pub fn find_program_address(
-        program_id: &Pubkey,
-        base: &Pubkey,
-    ) -> (Pubkey, u8, Vec<Vec<u8>>) {
-        let seeds = vec![Self::SEED.to_vec(), base.to_bytes().to_vec()];
+    fn offchain_find_program_address(program_id: &Pubkey, inputs: Self::SeedInputs) -> (Pubkey, u8, Vec<Vec<u8>>) {
+        let seeds = Self::seeds(inputs);
         let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
         let (pda, bump) = Pubkey::find_program_address(&seeds_iter, program_id);
         (pda, bump, seeds)
     }
 
-    pub fn get_epoch(slot: u64, epoch_length: u64) -> u64 {
-        let epoch = slot
-            .checked_div(epoch_length);
-
-        epoch.expect("TODO: Implement epoch calculation")
+    fn create_program_address(program_id: &Pubkey, bump: u8, inputs: Self::SeedInputs) -> Result<(Pubkey, u8, Vec<Vec<u8>>), ProgramError> {
+        let mut seeds = Self::seeds(inputs);
+        seeds.push(vec![bump]);
+        let seeds_iter: Vec<_> = seeds.iter().map(|s| s.as_slice()).collect();
+        let pda = Pubkey::create_program_address(&seeds_iter, program_id)?;
+        Ok((pda, bump, seeds))
     }
 
-    pub fn is_update_needed(&self, slot: u64, epoch_length: u64) -> bool {
-        let last_updated_epoch = Self::get_epoch(self.last_full_state_update_slot.into(), epoch_length);
-        let current_epoch = Self::get_epoch(slot, epoch_length);
+    fn check(program_id: &Pubkey, account: &AccountInfo, expect_writable: bool, check_admin: Option<&AccountInfo>) -> Result<(), ProgramError> {
+        let data = account.data.borrow();
+        let data_account = unsafe { load_account::<Self>(&data)? };
+        let (expected_pda, _, _) = Self::create_program_address(program_id, data_account.bump, data_account.base)?;
 
-        last_updated_epoch < current_epoch
+        check_account(
+            program_id,
+            account,
+            &expected_pda,
+            Some(Self::DISCRIMINATOR),
+            expect_writable,
+            check_admin
+        )?;
+
+        if let Some(admin) = check_admin {
+            if admin.key != &data_account.admin {
+                return Err(ProgramError::InvalidAccountData);
+            }
+        }
+
+        Ok(())
+    }
+
+    fn is_initialized(&self) -> bool {
+        self.discriminator.get() == Self::DISCRIMINATOR
+    }
+}
+
+impl Vault {
+    pub fn get_epoch(slot: u64, epoch_length: u64) -> Result<u64, ProgramError> {
+        get_epoch(slot, epoch_length)
+    }
+
+    pub fn is_update_needed(&self, slot: u64, epoch_length: u64) -> Result<bool, ProgramError> {
+        let last_updated_epoch = Self::get_epoch(self.last_full_state_update_slot.into(), epoch_length)?;
+        let current_epoch = Self::get_epoch(slot, epoch_length)?;
+
+        Ok(last_updated_epoch < current_epoch)
     }
 }

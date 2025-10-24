@@ -1,7 +1,7 @@
 use solana_instruction::{AccountMeta, Instruction};
 use solana_pubkey::{Pubkey, pubkey};
 
-use crate::{programs::restaking_core::{Config, Ncn, NcnOperatorState, NcnVaultSlasherTicket, NcnVaultTicket, Operator, OperatorVaultTicket}, utils::JitoAccount};
+use jito_bls_ncn_core::{programs::restaking_core::{Config, Ncn, NcnOperatorState, NcnVaultSlasherTicket, NcnVaultTicket, Operator, OperatorVaultTicket}, utils::JitoAccount};
 
 
 // ----------------------- PROGRAM ID -----------------------

@@ -2,8 +2,7 @@
 mod tests {
     use crate::fixtures::fixture::{create_test_client};
     use anyhow::Result;
-    use jito_bls_ncn_clients::{jito_clients::JitoClient, program_clients::bls_ncn_client::realloc_rolling_snapshot};
-    use jito_bls_ncn_sdk::realloc_rolling_snapshot_ix;
+    use jito_bls_ncn_clients::{program_clients::bls_ncn_client::realloc_rolling_snapshot};
     use solana_keypair::Keypair;
     use solana_program_test::tokio;
     use solana_signer::Signer;

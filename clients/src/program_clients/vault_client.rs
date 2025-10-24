@@ -1,7 +1,7 @@
 use jito_bls_ncn_core::{programs::{vault_core::{Config, Vault}, vault_sdk::{add_delegation_ix, close_vault_update_state_tracker_ix, config_address, crank_vault_update_state_tracker_ix, initialize_config_ix, initialize_vault_ix, initialize_vault_ncn_ticket_ix, initialize_vault_operator_delegation_ix, initialize_vault_update_state_tracker_ix, mint_to_ix, update_vault_balance_ix, vault_ncn_ticket_address, vault_operator_delegation_address, vault_update_state_tracker_address, warmup_vault_ncn_ticket_ix, WithdrawalAllocationMethod}}, utils::load_account};
 use solana_keypair::Keypair;
 use solana_pubkey::Pubkey;
-use anyhow::{Result};
+use anyhow::{Result, anyhow};
 use solana_signer::Signer;
 use solana_transaction::Transaction;
 use spl_associated_token_account_interface::address::get_associated_token_address;
@@ -27,7 +27,7 @@ impl Clone for VaultRoot {
 pub async fn get_config<T: JitoClient>(
     jito_client: &T,
 ) -> Result<Config> {
-    let (address, _) = config_address();
+    let (address, _, _) = config_address();
     let account_raw = jito_client.get_account(&address).await?;
     let account = unsafe { load_account::<Config>(&account_raw.data)? };
     Ok(*account)
@@ -61,14 +61,13 @@ pub async fn get_vault_is_update_needed<T: JitoClient>(jito_client: &mut T, vaul
     let config = get_config(jito_client).await?;
     let vault = get_vault(jito_client, vault).await?;
 
-    let is_update_needed = vault.is_update_needed(slot, config.epoch_length.into());
-    Ok(is_update_needed)
+    vault.is_update_needed(slot, config.epoch_length.into()).map_err(|e| anyhow!("Could not get is update needed: {}", e))
 }
 
 pub async fn test_initialize_config<T: JitoClient>(jito_client: &mut T) -> Result<()> {
     let admin = jito_client.keypair().insecure_clone();
     let restaking_program = jito_bls_ncn_core::programs::restaking_sdk::id();
-    let (config, _) = config_address();
+    let (config, _, _) = config_address();
     initialize_config(jito_client, &config, &admin, &restaking_program, &admin.pubkey(), 100).await?;
 
     Ok(())
@@ -112,9 +111,9 @@ pub async fn test_initialize_config<T: JitoClient>(jito_client: &mut T) -> Resul
         let fee_bps = 100;
         let decimals = 9;
 
-        let (vault, _) = jito_bls_ncn_core::programs::vault_sdk::vault_address(&base.pubkey());
-        let (burn_vault, _) = jito_bls_ncn_core::programs::vault_sdk::burn_vault_address(&base.pubkey());
-        let (config, _) = jito_bls_ncn_core::programs::vault_sdk::config_address();
+        let (vault, _, _) = jito_bls_ncn_core::programs::vault_sdk::vault_address(&base.pubkey());
+        let (burn_vault, _, _) = jito_bls_ncn_core::programs::vault_sdk::burn_vault_address(&base.pubkey());
+        let (config, _, _) = jito_bls_ncn_core::programs::vault_sdk::config_address();
 
         // Airdrop to vault admin
         jito_client.test_airdrop(&admin.pubkey(), 1_000_000_000).await?;
@@ -213,9 +212,9 @@ pub async fn test_initialize_config<T: JitoClient>(jito_client: &mut T) -> Resul
         ncn: &Pubkey,
     ) -> Result<()> {
 
-        let (config, _) = config_address();
-        let (vault_ncn_ticket, _) = vault_ncn_ticket_address(&vault_root.vault_pubkey, ncn);
-        let (ncn_vault_ticket, _) = jito_bls_ncn_core::programs::restaking_sdk::ncn_vault_ticket_address(ncn, &vault_root.vault_pubkey);
+        let (config, _, _) = config_address();
+        let (vault_ncn_ticket, _, _) = vault_ncn_ticket_address(&vault_root.vault_pubkey, ncn);
+        let (ncn_vault_ticket, _, _) = jito_bls_ncn_core::programs::restaking_sdk::ncn_vault_ticket_address(ncn, &vault_root.vault_pubkey);
 
         initialize_vault_ncn_ticket(
             jito_client,
@@ -265,8 +264,8 @@ pub async fn test_initialize_config<T: JitoClient>(jito_client: &mut T) -> Resul
         vault_root: &VaultRoot,
         ncn: &Pubkey,
     ) -> Result<()> {
-        let (config, _) = config_address();
-        let (vault_ncn_ticket, _) = vault_ncn_ticket_address(&vault_root.vault_pubkey, ncn);
+        let (config, _, _) = config_address();
+        let (vault_ncn_ticket, _, _) = vault_ncn_ticket_address(&vault_root.vault_pubkey, ncn);
 
         warmup_vault_ncn_ticket(
             jito_client,
@@ -314,9 +313,9 @@ pub async fn test_initialize_config<T: JitoClient>(jito_client: &mut T) -> Resul
         operator: &Pubkey,
     ) -> Result<()> {
 
-        let (config, _) = config_address();
-        let (vault_operator_delegation, _) = vault_operator_delegation_address(&vault_root.vault_pubkey, operator);
-        let (operator_vault_ticket, _) = jito_bls_ncn_core::programs::restaking_sdk::operator_vault_ticket_address(operator, &vault_root.vault_pubkey);
+        let (config, _, _) = config_address();
+        let (vault_operator_delegation, _, _) = vault_operator_delegation_address(&vault_root.vault_pubkey, operator);
+        let (operator_vault_ticket, _, _) = jito_bls_ncn_core::programs::restaking_sdk::operator_vault_ticket_address(operator, &vault_root.vault_pubkey);
 
         initialize_vault_operator_delegation(
             jito_client,
@@ -368,8 +367,8 @@ pub async fn test_initialize_config<T: JitoClient>(jito_client: &mut T) -> Resul
         amount: u64,
     ) -> Result<()> {
 
-        let (config, _) = config_address();
-        let (vault_operator_delegation, _) = vault_operator_delegation_address(&vault_root.vault_pubkey, operator);
+        let (config, _, _) = config_address();
+        let (vault_operator_delegation, _, _) = vault_operator_delegation_address(&vault_root.vault_pubkey, operator);
 
         add_delegation(
             jito_client,
@@ -455,8 +454,7 @@ pub async fn test_initialize_config<T: JitoClient>(jito_client: &mut T) -> Resul
         amount_in: u64,
         min_amount_out: u64,
     ) -> Result<()> {
-
-        let (config, _) = config_address();
+        let (config, _, _) = config_address();
         let blockhash = jito_client.get_recent_blockhash().await?;
         let tx = Transaction::new_signed_with_payer(
             &[mint_to_ix(
@@ -512,7 +510,7 @@ pub async fn test_initialize_config<T: JitoClient>(jito_client: &mut T) -> Resul
         for i in 0..operators.len() {
             let operator_index = (i + ncn_epoch as usize) % operators.len();
             let operator = &operators[operator_index];
-            let (vault_operator_delegation, _) = vault_operator_delegation_address(vault_pubkey, operator);
+            let (vault_operator_delegation, _, _) = vault_operator_delegation_address(vault_pubkey, operator);
 
             crank_vault_update_state_tracker(
                 jito_client,
@@ -545,8 +543,8 @@ pub async fn test_initialize_config<T: JitoClient>(jito_client: &mut T) -> Resul
         let epoch_length: u64 = config.epoch_length.into();
         let ncn_epoch = slot / epoch_length;
 
-        let (vault_operator_delegation, _) = vault_operator_delegation_address(vault, operator);
-        let (vault_update_state_tracker, _) = vault_update_state_tracker_address(vault, ncn_epoch);
+        let (vault_operator_delegation, _, _) = vault_operator_delegation_address(vault, operator);
+        let (vault_update_state_tracker, _, _) = vault_update_state_tracker_address(vault, ncn_epoch);
 
         crank_vault_update_state_tracker(
             jito_client,
@@ -564,7 +562,7 @@ pub async fn test_initialize_config<T: JitoClient>(jito_client: &mut T) -> Resul
         vault_operator_delegation: &Pubkey,
         vault_update_state_tracker: &Pubkey,
     ) -> Result<()> {
-        let (config, _) = config_address();
+        let (config, _, _) = config_address();
         let blockhash = jito_client.get_recent_blockhash().await?;
 
         let tx = Transaction::new_signed_with_payer(
@@ -588,7 +586,7 @@ pub async fn test_initialize_config<T: JitoClient>(jito_client: &mut T) -> Resul
         jito_client: &mut T,
         vault_pubkey: &Pubkey,
     ) -> Result<()> {
-        let (config, _) = config_address();
+        let (config, _, _) = config_address();
         let blockhash = jito_client.get_recent_blockhash().await?;
 
         let vault = get_vault(jito_client, vault_pubkey).await?;
@@ -616,7 +614,7 @@ pub async fn test_initialize_config<T: JitoClient>(jito_client: &mut T) -> Resul
         vault_pubkey: &Pubkey,
         vault_update_state_tracker: &Pubkey,
     ) -> Result<()> {
-        let (config, _) = config_address();
+        let (config, _, _) = config_address();
         let blockhash = jito_client.get_recent_blockhash().await?;
 
         let tx = Transaction::new_signed_with_payer(
@@ -642,7 +640,7 @@ pub async fn test_initialize_config<T: JitoClient>(jito_client: &mut T) -> Resul
         vault_update_state_tracker: &Pubkey,
         ncn_epoch: u64,
     ) -> Result<()> {
-        let (config, _) = config_address();
+        let (config, _, _) = config_address();
         let blockhash = jito_client.get_recent_blockhash().await?;
 
         let tx = Transaction::new_signed_with_payer(

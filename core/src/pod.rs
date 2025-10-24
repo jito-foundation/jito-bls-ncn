@@ -163,7 +163,6 @@ impl PodBool {
     pub fn get(&self) -> bool {
         self.data != 0
     }
-
     #[inline(always)]
     pub fn set(&mut self, value: bool) {
         self.data = value as u8;

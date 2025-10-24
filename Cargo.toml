@@ -54,7 +54,7 @@ solana-security-txt = "1.1.1"
 solana-sha256-hasher = "3.0.0"
 solana-signature = "3.0.0"
 solana-signer = "3.0.0"
-solana-system-interface = "2.0.0"
+solana-system-interface = { version = "2.0.0", features = ["bincode"] }
 solana-system-transaction = "3.0.0"
 solana-transaction = "3.0.0"
 spl-associated-token-account-interface = "2.0.0"

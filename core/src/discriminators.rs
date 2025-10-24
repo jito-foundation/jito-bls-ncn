@@ -1,5 +1,5 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
+#[repr(u64)]
 pub enum Discriminators {
     RollingSnapshot = 0x01,
     BlsOperator = 0x10,

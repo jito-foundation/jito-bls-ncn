@@ -1,8 +1,8 @@
 use solana_instruction::{AccountMeta, Instruction};
 use solana_pubkey::{Pubkey, pubkey};
 
-use crate::programs::vault_core::{BurnVault, Config, Vault, VaultNcnSlasherOperatorTicket, VaultNcnSlasherTicket, VaultNcnTicket, VaultOperatorDelegation, VaultStakerWithdrawalTicket, VaultUpdateStateTracker};
-use crate::utils::{JitoAccount};
+use jito_bls_ncn_core::programs::vault_core::{BurnVault, Config, Vault, VaultNcnSlasherOperatorTicket, VaultNcnSlasherTicket, VaultNcnTicket, VaultOperatorDelegation, VaultStakerWithdrawalTicket, VaultUpdateStateTracker};
+use jito_bls_ncn_core::utils::{JitoAccount};
 
 // ----------------------- PROGRAM ID -----------------------
 pub fn id() -> Pubkey {
