@@ -4,13 +4,13 @@ use jito_bls_ncn_core::{
         bls_operator::BlsOperator, config::Config, consensus::Consensus,
         rolling_snapshot::RollingSnapshot,
     },
-    bls::solana_bls_interface::SolanaBN254Keypair,
+    bls::solana_bls_interface::{SolanaBN254G1, SolanaBN254G2, SolanaBN254Keypair},
     utils::{get_realloc_calls, load_account, JitoAccount},
 };
 use jito_bls_ncn_sdk::bls_ncn_sdk::{
-    bls_operator_address, config_address, consensus_address, initialize_bls_operator_ix,
-    initialize_config_ix, initialize_rolling_snapshot_ix, rolling_snapshot_address, vote_ix,
+    bls_operator_address, config_address, consensus_address, initialize_bls_operator_ix, initialize_config_ix, initialize_rolling_snapshot_ix, register_bls_operator_ix, rolling_snapshot_address, vote_ix
 };
+use solana_compute_budget_interface::ComputeBudgetInstruction;
 use solana_pubkey::Pubkey;
 use solana_signer::Signer;
 use solana_transaction::Transaction;
@@ -19,7 +19,14 @@ use crate::{jito_clients::JitoClient, program_clients::meta_restaking_client::Te
 
 pub struct BlsNcnRoot {
     pub test_ncn: TestNcn,
-    pub operator_keypairs: Vec<SolanaBN254Keypair>,
+    pub operator_bls_keypairs: Vec<SolanaBN254Keypair>,
+}
+
+pub struct BlsNcnSignatureRoot {
+    pub operator_g2_signed: Vec<[u8; 128]>,
+    pub operator_signatures: Vec<[u8; 64]>,
+    pub indexs: Vec<usize>,
+    pub message: Vec<u8>,
 }
 
 pub async fn get_bls_operator<T: JitoClient>(
@@ -122,11 +129,47 @@ pub async fn initialize_bls_operator<T: JitoClient>(
     Ok(())
 }
 
-pub async fn vote<T: JitoClient>(jito_client: &mut T, ncn: &Pubkey) -> Result<()> {
+
+pub async fn register_bls_operator<T: JitoClient>(
+    jito_client: &T,
+    ncn: &Pubkey,
+    operator: &Pubkey,
+) -> Result<()> {
+    let admin = jito_client.keypair().insecure_clone();
+    let blockhash = jito_client.get_recent_blockhash().await?;
+    let tx = Transaction::new_signed_with_payer(
+        &[register_bls_operator_ix(
+            ncn,
+            operator,
+            &admin.pubkey(),
+        )],
+        Some(&admin.pubkey()),
+        &[&admin],
+        blockhash,
+    );
+
+    jito_client.send_and_confirm_transaction(tx, None).await?;
+    Ok(())
+}
+
+// aggregated_g1_signature: SolanaBN254G1,
+// aggregated_g2_signed: SolanaBN254G2,
+// operators_bitmap_signed: [u8; 32],
+// message: [u8; 32],
+pub async fn vote<T: JitoClient>(
+    jito_client: &mut T,
+    ncn: &Pubkey,
+    aggregated_g1_signature: &SolanaBN254G1,
+    aggregated_g2_signed: &SolanaBN254G2,
+    operators_bitmap_signed: &[u8; 32],
+    message: &[u8; 32]) -> Result<()> {
     let payer = jito_client.keypair().insecure_clone();
     let blockhash = jito_client.get_recent_blockhash().await?;
     let tx = Transaction::new_signed_with_payer(
-        &[vote_ix(ncn)],
+        &[
+            ComputeBudgetInstruction::set_compute_unit_limit(1_400_000),
+            vote_ix(ncn, aggregated_g1_signature, aggregated_g2_signed, operators_bitmap_signed, message)
+        ],
         Some(&payer.pubkey()),
         &[&payer],
         blockhash,

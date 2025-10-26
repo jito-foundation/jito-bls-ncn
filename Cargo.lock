@@ -2719,6 +2719,7 @@ dependencies = [
  "solana-account",
  "solana-client",
  "solana-commitment-config",
+ "solana-compute-budget-interface",
  "solana-epoch-info",
  "solana-keypair",
  "solana-program",

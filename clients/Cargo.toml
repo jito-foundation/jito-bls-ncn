@@ -33,3 +33,4 @@ solana-system-transaction = { workspace = true }
 solana-transaction = { workspace = true }
 spl-associated-token-account-interface = { workspace = true }
 spl-token-interface = { workspace = true }
+solana-compute-budget-interface = { workspace = true }

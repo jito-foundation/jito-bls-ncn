@@ -1,9 +1,8 @@
 use jito_bls_ncn_core::{
     accounts::*,
-    bls::solana_bls_interface::SolanaBN254Keypair,
+    bls::solana_bls_interface::{SolanaBN254G1, SolanaBN254G2, SolanaBN254Keypair},
     instructions::{
-        InitializeBlsOperatorIxData, InitializeConfigIxData, InitializeRollingSnapshotIxData,
-        VoteIxData,
+        InitializeBlsOperatorIxData, InitializeConfigIxData, InitializeRollingSnapshotIxData, RegisterBlsOperatorIxData, VoteIxData
     },
     utils::{JitoAccount, JitoIxData},
 };
@@ -117,17 +116,69 @@ pub fn initialize_bls_operator_ix(
     }
 }
 
-pub fn vote_ix(ncn: &Pubkey) -> Instruction {
+pub fn register_bls_operator_ix(
+    ncn: &Pubkey,
+    operator: &Pubkey,
+    admin: &Pubkey,
+) -> Instruction {
     let program_id = id();
     let system_program = solana_system_interface::program::id();
 
-    // [ncn, system_program]
+    let (config, _, _) = config_address(ncn);
+    let (rolling_snapshot, _, _) = rolling_snapshot_address(ncn);
+    let (bls_operator, _, _) = bls_operator_address(operator);
+
+    let (restaking_config, _, _) = crate::restaking_sdk::config_address();
+    let (ncn_operator_state, _, _) = crate::restaking_sdk::ncn_operator_state_address(ncn, operator);
+
+    // let [config, rolling_snapshot, bls_operator, restaking_config, ncn, operator, ncn_operator_state, admin, system_program]
     let accounts = vec![
-        AccountMeta::new(*ncn, false),
+        AccountMeta::new_readonly(config, false),
+        AccountMeta::new(rolling_snapshot, false),
+        AccountMeta::new_readonly(bls_operator, false),
+        AccountMeta::new_readonly(restaking_config, false),
+        AccountMeta::new_readonly(*ncn, false),
+        AccountMeta::new_readonly(*operator, false),
+        AccountMeta::new_readonly(ncn_operator_state, false),
+        AccountMeta::new(*admin, true),
         AccountMeta::new_readonly(system_program, false),
     ];
 
-    let ix_data = VoteIxData::new([0; 64]);
+    let ix_data = RegisterBlsOperatorIxData::new();
+    let ix_data_bytes = unsafe { ix_data.to_bytes() };
+
+    Instruction {
+        program_id,
+        accounts,
+        data: ix_data_bytes.to_vec(),
+    }
+}
+
+// pub aggregated_g1_signature: [u8; 64],
+// pub aggregated_g2_signed: [u8; 64],
+// pub operators_bitmap_signed: [u8; 32],
+// pub message: [u8; 32],
+pub fn vote_ix(
+    ncn: &Pubkey,
+    aggregated_g1_signature: &SolanaBN254G1,
+    aggregated_g2_signed: &SolanaBN254G2,
+    operators_bitmap_signed: &[u8; 32],
+    message: &[u8; 32],
+) -> Instruction {
+    let program_id = id();
+    let (rolling_snapshot, _, _) = rolling_snapshot_address(ncn);
+
+    // [ncn, system_program]
+    let accounts = vec![
+        AccountMeta::new(rolling_snapshot, false),
+    ];
+
+    let ix_data = VoteIxData::new(
+        aggregated_g1_signature.raw,
+        aggregated_g2_signed.raw,
+        *operators_bitmap_signed,
+        *message,
+    );
     let ix_data_bytes = unsafe { ix_data.to_bytes() };
 
     Instruction {

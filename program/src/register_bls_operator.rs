@@ -101,10 +101,12 @@ pub fn process_register_bls_operator(
             msg!("Operator does not match - NcnOperatorState");
             return Err(ProgramError::InvalidArgument);
         }
+
         if !ncn_operator_state_account
             .ncn_opt_in_state
             .is_active(clock.slot, epoch_length)?
         {
+            msg!("{} {} ({}) {}", clock.slot, epoch_length, ncn_operator_state_account.ncn_opt_in_state.is_active(clock.slot, epoch_length)?, ncn_operator_state_account.ncn_opt_in_state.slot_added());
             msg!("NCN is not opted in");
             return Err(ProgramError::InvalidArgument);
         }

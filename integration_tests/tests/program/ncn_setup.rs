@@ -24,7 +24,7 @@ mod tests {
         add_vaults_to_test_ncn(&mut client, &mut ncn_root, vault_count, None).await?;
         add_delegation_in_test_ncn(&mut client, &ncn_root, 1000).await?;
 
-        client.test_warp_to_slot_incremental(1_000_000).await?;
+        client.test_warp_to_slot_incremental(500_000).await?;
         update_all_vaults_in_test_ncn(&mut client, &ncn_root).await?;
 
         Ok(())

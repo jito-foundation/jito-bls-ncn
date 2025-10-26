@@ -130,8 +130,7 @@ impl InitializeBlsOperatorIxData {
 
 #[repr(C, packed)]
 pub struct RegisterBlsOperatorIxData {
-    pub discriminator: u64,
-    pub g1: [u8; 64],
+    pub discriminator: PodU64,
 }
 
 /// # Safety
@@ -146,20 +145,21 @@ unsafe impl JitoIxData for RegisterBlsOperatorIxData {
 }
 
 impl RegisterBlsOperatorIxData {
-    pub fn new(g1: [u8; 64]) -> Self {
+    pub fn new() -> Self {
         Self {
-            discriminator: Self::DISCRIMINATOR,
-            g1,
+            discriminator: PodU64::from(Self::DISCRIMINATOR),
         }
     }
 }
 
 // -------------------- VOTE -----------------------------
-
 #[repr(C, packed)]
 pub struct VoteIxData {
-    pub discriminator: u64,
-    pub g1: [u8; 64],
+    pub discriminator: PodU64,
+    pub aggregated_g1_signature: [u8; 64],
+    pub aggregated_g2_signed: [u8; 128],
+    pub operators_bitmap_signed: [u8; 32],
+    pub message: [u8; 32],
 }
 
 /// # Safety
@@ -174,10 +174,13 @@ unsafe impl JitoIxData for VoteIxData {
 }
 
 impl VoteIxData {
-    pub fn new(g1: [u8; 64]) -> Self {
+    pub fn new(aggregated_g1_signature: [u8; 64], aggregated_g2_signed: [u8; 128], operators_bitmap_signed: [u8; 32], message: [u8; 32]) -> Self {
         Self {
-            discriminator: Self::DISCRIMINATOR,
-            g1,
+            discriminator: PodU64::from(Self::DISCRIMINATOR),
+            aggregated_g1_signature,
+            aggregated_g2_signed,
+            operators_bitmap_signed,
+            message,
         }
     }
 }

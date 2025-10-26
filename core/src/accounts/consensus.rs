@@ -6,7 +6,7 @@ use solana_pubkey::Pubkey;
 
 use crate::{
     discriminators::Discriminators,
-    pod::{PodOption, PodU64},
+    pod::PodU64,
     utils::{check_account, load_account, JitoAccount},
 };
 
@@ -14,7 +14,7 @@ use crate::{
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct Consensus {
-    pub discriminator: PodOption<PodU64>,
+    pub discriminator: PodU64,
     /// The bump seed for the PDA
     pub bump: u8,
     /// The NCN this ncn operator account belongs to
@@ -81,11 +81,7 @@ impl JitoAccount for Consensus {
     }
 
     fn is_initialized(&self) -> bool {
-        if let Some(discriminator) = self.discriminator() {
-            (*discriminator).get() == Self::DISCRIMINATOR
-        } else {
-            false
-        }
+        self.discriminator.get() == Self::DISCRIMINATOR
     }
 }
 
@@ -95,7 +91,7 @@ impl Consensus {
             return Err(ProgramError::AccountAlreadyInitialized);
         }
 
-        self.discriminator = PodOption::some(PodU64::from(Self::DISCRIMINATOR));
+        self.discriminator = PodU64::from(Self::DISCRIMINATOR);
 
         self.ncn = *ncn;
         self.bump = bump;
@@ -105,24 +101,12 @@ impl Consensus {
         Ok(())
     }
 
-    pub fn discriminator(&self) -> Option<&PodU64> {
-        self.discriminator.as_ref()
+    pub fn discriminator(&self) -> u64 {
+        self.discriminator.get()
     }
 
     pub const fn ncn(&self) -> &Pubkey {
         &self.ncn
-    }
-}
-
-impl Default for Consensus {
-    fn default() -> Self {
-        Consensus {
-            discriminator: PodOption::none(),
-            bump: 0,
-            ncn: Pubkey::default(),
-            consensus_count: PodU64::from(0_u64),
-            reserved: [0; 1024],
-        }
     }
 }
 

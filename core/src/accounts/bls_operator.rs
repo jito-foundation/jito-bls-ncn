@@ -9,7 +9,7 @@ use solana_pubkey::Pubkey;
 use crate::{
     bls::solana_bls::verify_g1_g2,
     discriminators::Discriminators,
-    pod::{PodOption, PodU64},
+    pod::PodU64,
     utils::{check_account, JitoAccount},
 };
 
@@ -17,7 +17,7 @@ use crate::{
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct BlsOperator {
-    pub discriminator: PodOption<PodU64>,
+    pub discriminator: PodU64,
     /// The bump seed for the PDA
     pub bump: u8,
     /// The operator pubkey
@@ -92,11 +92,7 @@ impl JitoAccount for BlsOperator {
     }
 
     fn is_initialized(&self) -> bool {
-        if let Some(discriminator) = self.discriminator() {
-            (*discriminator).get() == Self::DISCRIMINATOR
-        } else {
-            false
-        }
+        self.discriminator() == Self::DISCRIMINATOR
     }
 }
 
@@ -116,7 +112,7 @@ impl BlsOperator {
             return Err(ProgramError::InvalidArgument);
         }
 
-        self.discriminator = PodOption::some(PodU64::from(Self::DISCRIMINATOR));
+        self.discriminator = PodU64::from(Self::DISCRIMINATOR);
 
         self.operator = *operator;
         self.socket = *socket;
@@ -128,8 +124,8 @@ impl BlsOperator {
         Ok(())
     }
 
-    pub fn discriminator(&self) -> Option<&PodU64> {
-        self.discriminator.as_ref()
+    pub fn discriminator(&self) -> u64 {
+        self.discriminator.get()
     }
 
     pub const fn operator(&self) -> &Pubkey {
@@ -186,22 +182,6 @@ impl BlsOperator {
         self.verify_keypair()?;
 
         Ok(())
-    }
-}
-
-impl Default for BlsOperator {
-    fn default() -> Self {
-        BlsOperator {
-            discriminator: PodOption::none(),
-            bump: 0,
-            operator: Pubkey::default(),
-            admin: Pubkey::default(),
-            g1: [0; 64],
-            g2: [0; 128],
-            last_updated: PodU64::from(0),
-            socket: [0; 128],
-            reserved: [0; 256],
-        }
     }
 }
 

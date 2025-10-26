@@ -22,6 +22,7 @@ mod entrypoint {
     use crate::initialize_bls_operator::process_initialize_bls_operator;
     use crate::initialize_config::process_initialize_config;
     use crate::initialize_rolling_snapshot::process_initialize_rolling_snapshot;
+    use crate::register_bls_operator::process_register_bls_operator;
     use crate::vote::process_vote;
 
     use solana_security_txt::security_txt;
@@ -63,7 +64,10 @@ mod entrypoint {
                 msg!("Initializing BLS Operator");
                 process_initialize_bls_operator(program_id, accounts, instruction_data)
             }
-            JitoBlsNCNInstructions::RegisterBlsOperator => todo!(),
+            JitoBlsNCNInstructions::RegisterBlsOperator => {
+                msg!("Registering BLS Operator");
+                process_register_bls_operator(program_id, accounts, instruction_data)
+            }
             JitoBlsNCNInstructions::RemoveBlsOperator => todo!(),
             JitoBlsNCNInstructions::Vote => {
                 msg!("Voting");

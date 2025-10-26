@@ -15,7 +15,7 @@ use crate::{
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct RollingSnapshot {
-    pub discriminator: PodOption<PodU64>,
+    pub discriminator: PodU64,
     /// The bump seed for the PDA
     pub bump: u8,
     /// The NCN this ncn operator account belongs to
@@ -86,30 +86,27 @@ impl JitoAccount for RollingSnapshot {
     }
 
     fn is_initialized(&self) -> bool {
-        if let Some(discriminator) = self.discriminator() {
-            (*discriminator).get() == Self::DISCRIMINATOR
-        } else {
-            false
-        }
+        self.discriminator.get() == Self::DISCRIMINATOR
     }
 }
 
 impl RollingSnapshot {
     pub const MAX_OPERATORS: u16 = 256;
 
-    pub fn initialize(&mut self, bump: u8) -> Result<(), ProgramError> {
+    pub fn initialize(&mut self, ncn: &Pubkey, bump: u8) -> Result<(), ProgramError> {
         if self.is_initialized() {
             return Err(ProgramError::AccountAlreadyInitialized);
         }
 
-        self.discriminator = PodOption::some(PodU64::from(Self::DISCRIMINATOR));
+        self.discriminator = PodU64::from(Self::DISCRIMINATOR);
         self.bump = bump;
+        self.ncn = *ncn;
 
         Ok(())
     }
 
-    pub fn discriminator(&self) -> Option<&PodU64> {
-        self.discriminator.as_ref()
+    pub fn discriminator(&self) -> u64 {
+        self.discriminator.get()
     }
 
     pub fn operator_count(&self) -> u16 {

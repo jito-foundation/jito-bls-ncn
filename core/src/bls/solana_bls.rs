@@ -84,9 +84,11 @@
 use ark_bn254::{Fq, Fq2, Fr, G1Projective, G2Affine};
 use ark_ec::{AffineRepr, CurveGroup};
 use ark_ff::{BigInteger, Field, One, PrimeField};
-use solana_bn254::prelude::{
+use solana_bn254::{compression::prelude::alt_bn128_g1_decompress, prelude::{
     alt_bn128_g1_addition_be, alt_bn128_g1_multiplication_be, alt_bn128_pairing_be,
-};
+}};
+use solana_msg::msg;
+use solana_program::log::sol_log_compute_units;
 
 // ----------------------------------------------------------------------------
 //                       CONSTANTS
@@ -206,7 +208,9 @@ pub fn solana_hash_to_curve(message: &[u8], domain: Option<&[u8]>) -> Result<[u8
         None => message.to_vec(),
     };
     let hash = solana_hash(&hasher_input);
-    solana_map_to_curve(&hash)
+    alt_solana_map_to_curve_simple(&hash)
+    // alt_solana_map_to_curve(&hash)
+    // solana_map_to_curve(&hash)
 }
 
 /// Concatenate domain and message with varint-encoded length prefix
@@ -332,6 +336,335 @@ fn solana_map_to_curve(bytes: &[u8; 32]) -> Result<[u8; 64], String> {
         x += one;
     }
 }
+
+/// Hash a message to a point on the BN254 G1 curve using try-and-increment with decompression
+///
+/// More efficient implementation that leverages Solana's alt_bn128_g1_decompress syscall
+/// instead of computing field arithmetic operations.
+///
+/// # Arguments
+/// * `message` - The message bytes to hash to the curve
+/// * `domain` - Optional domain separator for protocol isolation
+///
+/// # Returns
+/// * `Ok([u8; 64])` - Uncompressed G1 point (X || Y) in big-endian
+/// * `Err(String)` - If mapping fails after 255 attempts
+///
+/// # Algorithm
+/// 1. For counter n from 0 to 254:
+///    - hash = SHA256(domain || message || n)
+///    - Try to decompress hash as x-coordinate
+///    - If successful, return the point
+///
+/// # Note
+/// This produces DIFFERENT outputs than the EigenLayer-compatible version.
+/// Use only if you don't need compatibility with existing EigenLayer systems.
+pub fn alt_solana_map_to_curve(
+    bytes: &[u8; 32]
+) -> Result<[u8; 64], String> {
+
+    // Try up to 255 different counter values
+    for counter in 0u8..=254 {
+        // Create hash with counter: SHA256(base_input || counter)
+        let mut hash_input = Vec::with_capacity(bytes.len() + 1);
+        hash_input.extend_from_slice(bytes);
+        hash_input.push(counter);
+
+        let hash = solana_hash(&hash_input);
+
+        // Try to decompress the hash as an x-coordinate
+        // The decompression syscall expects the x-coordinate with a sign bit
+        // We'll try both possible sign bits (0x02 for even y, 0x03 for odd y)
+        for prefix in [0x02u8, 0x03u8] {
+            let mut compressed = vec![prefix];
+            compressed.extend_from_slice(&hash);
+
+            // Try to decompress as a G1 point
+            match alt_bn128_g1_decompress(&compressed) {
+                Ok(point) => {
+                    // Decompression successful - point is valid and in correct subgroup
+                    // The syscall returns 64 bytes: x || y in big-endian
+                    if point.len() == 64 {
+                        let mut result = [0u8; 64];
+                        result.copy_from_slice(&point);
+                        return Ok(result);
+                    }
+                }
+                Err(_) => continue, // Try next prefix or counter
+            }
+        }
+    }
+
+    Err("Failed to find valid curve point after 255 attempts".to_string())
+}
+
+/// The BN254 field modulus
+/// 0x30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd47
+const MODULUS_BYTES: [u8; 32] = [
+    0x30, 0x64, 0x4e, 0x72, 0xe1, 0x31, 0xa0, 0x29,
+    0xb8, 0x50, 0x45, 0xb6, 0x81, 0x81, 0x58, 0x5d,
+    0x97, 0x81, 0x6a, 0x91, 0x68, 0x71, 0xca, 0x8d,
+    0x3c, 0x20, 0x8c, 0x16, 0xd8, 0x7c, 0xfd, 0x47,
+];
+
+/// The last multiple of the modulus before 2^256
+/// 0xf1f5883e65f820d099915c908786b9d3f58714d70a38f4c22ca2bc723a70f263
+const NORMALIZE_MODULUS_BYTES: [u8; 32] = [
+    0xf1, 0xf5, 0x88, 0x3e, 0x65, 0xf8, 0x20, 0xd0,
+    0x99, 0x91, 0x5c, 0x90, 0x87, 0x86, 0xb9, 0xd3,
+    0xf5, 0x87, 0x14, 0xd7, 0x0a, 0x38, 0xf4, 0xc2,
+    0x2c, 0xa2, 0xbc, 0x72, 0x3a, 0x70, 0xf2, 0x63,
+];
+
+// Compare 32-byte big-endian arrays as integers without reducing to Fq
+fn ge_be(a: &[u8; 32], b: &[u8; 32]) -> bool {
+    for i in 0..32 {
+        if a[i] != b[i] {
+            return a[i] > b[i]; // lexicographic BE compare
+        }
+    }
+    true
+}
+
+pub fn alt_solana_map_to_curve_simple(bytes: &[u8; 32]) -> Result<[u8; 64], String> {
+    // DO NOT reduce NORMALIZE_MODULUS_BYTES into Fq
+    const MOD_NORM_BE: [u8; 32] = NORMALIZE_MODULUS_BYTES;
+
+    for counter in 0u8..u8::MAX {
+        // msg || counter(u8) — matches your current concatenation
+        let hash_input = [&bytes[..], &[counter]].concat();
+        let hash = solana_hash(&hash_input); // 32 bytes, SHA-256 on Solana
+
+        // 1) Normalization check in integer space (avoid modulo bias)
+        let hash_be: [u8; 32] = hash; // already 32 bytes
+        if ge_be(&hash_be, &MOD_NORM_BE) {
+            continue;
+        }
+
+        // 2) Now map into the field (this does the mod p reduction)
+        let x_fq = Fq::from_be_bytes_mod_order(&hash_be);
+
+        // 3) Get canonical 32-byte big-endian encoding of the field element
+        let mut x_bytes = [0u8; 32];
+        x_bytes.copy_from_slice(&x_fq.into_bigint().to_bytes_be());
+
+        // 4) Try to decompress (alt_bn128_g1_decompress expects 32-byte X)
+        match alt_bn128_g1_decompress(&x_bytes) {
+            Ok(point) if point.len() == 64 => {
+                let mut out = [0u8; 64];
+                out.copy_from_slice(&point);
+                return Ok(out);
+            }
+            _ => continue,
+        }
+    }
+
+    Err("Failed to find valid curve point after 1_000_000 attempts".to_string())
+}
+
+// pub fn alt_solana_map_to_curve_simple(
+//     bytes: &[u8; 32],
+// ) -> Result<[u8; 64], String> {
+//     // NORMALIZE_MODULUS as Fq field element
+//     let normalize_modulus = Fq::from_be_bytes_mod_order(&NORMALIZE_MODULUS_BYTES);
+
+//     for counter in 0u64..1_000_000 {
+//         let hash_input = [
+//             b"BLS-BN254-RO",
+//             &bytes[..],
+//             &counter.to_be_bytes(),
+//             // &[counter]
+//         ].concat();
+
+//         let hash = solana_hash(&hash_input);
+
+//         // Convert to field element (automatically does modulo)
+//         let hash_fq = Fq::from_be_bytes_mod_order(&hash);
+
+//         // Check normalization bound
+//         if hash_fq >= normalize_modulus {
+//             continue;
+//         }
+
+//         // Get the reduced bytes
+//         let x_coord_bytes = hash_fq.into_bigint().to_bytes_be();
+//         let mut x_coord = [0u8; 32];
+//         x_coord.copy_from_slice(&x_coord_bytes);
+
+//         // Try to decompress
+//         match alt_bn128_g1_decompress(&x_coord) {
+//             Ok(point) if point.len() == 64 => {
+//                 let mut result = [0u8; 64];
+//                 result.copy_from_slice(&point);
+//                 return Ok(result);
+//             }
+//             _ => continue,
+//         }
+//     }
+
+//     Err("Failed to find valid curve point after 1_000_000 attempts".to_string())
+// }
+
+// use dashu::integer::UBig;
+
+// /// MODULUS: The modulus Fq2
+// /// 0x30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd47
+// pub static MODULUS: UBig = unsafe {
+//     UBig::from_static_words(&[
+//         0x3c208c16d87cfd47,
+//         0x97816a916871ca8d,
+//         0xb85045b68181585d,
+//         0x30644e72e131a029,
+//     ])
+// };
+
+// /// The last multiple of the modulus before 2^256 used to normalize
+// /// hash values for our signing scheme.
+// /// 0xf1f5883e65f820d099915c908786b9d3f58714d70a38f4c22ca2bc723a70f263
+// pub static NORMALIZE_MODULUS: UBig = unsafe {
+//     UBig::from_static_words(&[
+//         0x2ca2bc723a70f263,
+//         0xf58714d70a38f4c2,
+//         0x99915c908786b9d3,
+//         0xf1f5883e65f820d0,
+//     ])
+// };
+
+// pub const G1_MINUS_ONE: [u8; 64] = [
+//     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+//     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+//     0x00, 0x00, 0x00, 0x01,
+//     0xb0, 0x64, 0x4e, 0x72, 0xe1, 0x31, 0xa0, 0x29, 0xb8, 0x50, 0x45, 0xb6, 0x81, 0x81,
+//     0x58, 0x5d, 0x97, 0x81, 0x6a, 0x91, 0x68, 0x71, 0xca, 0x8d, 0x3c, 0x20, 0x8c, 0x16,
+//     0xd8, 0x7c, 0xfd, 0x45,
+// ];
+
+// pub const G2_MINUS_ONE: [u8; 128] = [
+//     0x19, 0x8e, 0x93, 0x93, 0x92, 0x0d, 0x48, 0x3a, 0x72, 0x60, 0xbf, 0xb7, 0x31, 0xfb, 0x5d, 0x25,
+//     0xf1, 0xaa, 0x49, 0x33, 0x35, 0xa9, 0xe7, 0x12, 0x97, 0xe4, 0x85, 0xb7, 0xae, 0xf3, 0x12, 0xc2,
+//     0x18, 0x00, 0xde, 0xef, 0x12, 0x1f, 0x1e, 0x76, 0x42, 0x6a, 0x00, 0x66, 0x5e, 0x5c, 0x44, 0x79,
+//     0x67, 0x43, 0x22, 0xd4, 0xf7, 0x5e, 0xda, 0xdd, 0x46, 0xde, 0xbd, 0x5c, 0xd9, 0x92, 0xf6, 0xed,
+//     0xa7, 0x5d, 0xc4, 0xa2, 0x88, 0xd1, 0xaf, 0xb3, 0xcb, 0xb1, 0xac, 0x09, 0x18, 0x75, 0x24, 0xc7,
+//     0xdb, 0x36, 0x39, 0x5d, 0xf7, 0xbe, 0x3b, 0x99, 0xe6, 0x73, 0xb1, 0x3a, 0x07, 0x5a, 0x65, 0xec,
+//     0x1d, 0x9b, 0xef, 0xcd, 0x05, 0xa5, 0x32, 0x3e, 0x6d, 0xa4, 0xd4, 0x35, 0xf3, 0xb6, 0x17, 0xcd,
+//     0xb3, 0xaf, 0x83, 0x28, 0x5c, 0x2d, 0xf7, 0x11, 0xef, 0x39, 0xc0, 0x15, 0x71, 0x82, 0x7f, 0x9d,
+// ];
+
+// #[cfg(all(test, not(target_os = "solana")))]
+// mod tests {
+//     use super::{G1_MINUS_ONE, G2_MINUS_ONE};
+//     use ark_bn254::{G1Affine, G2Affine};
+//     use ark_ec::AffineRepr;
+//     use ark_serialize::CanonicalSerialize;
+
+//     #[test]
+//     fn test_g1_minus_one() {
+//         // Compute negation of G1 generator
+//         let g1_gen = G1Affine::generator();
+//         let g1_neg = -g1_gen;
+//         let mut computed_bytes = [0u8; 64];
+//         g1_neg
+//             .serialize_uncompressed(&mut computed_bytes[..])
+//             .expect("Serialization failed");
+
+//         // Convert to big-endian by reversing each 32-byte block (x and y coordinates)
+//         computed_bytes[0..32].reverse();
+//         computed_bytes[32..64].reverse();
+
+//         // Verify against static constant
+//         assert_eq!(
+//             computed_bytes, G1_MINUS_ONE,
+//             "Computed G1_MINUS_ONE does not match static constant"
+//         );
+//     }
+
+//     #[test]
+//     fn test_g2_minus_one() {
+//         // Compute negation of G2 generator
+//         let g2_gen = G2Affine::generator();
+//         let g2_neg = -g2_gen;
+//         let mut computed_bytes = [0u8; 128];
+//         g2_neg
+//             .serialize_uncompressed(&mut computed_bytes[..])
+//             .expect("Serialization failed");
+
+//         // Convert to big-endian by reversing each 64-byte block (x and y coordinates)
+//         computed_bytes[0..64].reverse();
+//         computed_bytes[64..128].reverse();
+
+//         // Verify against static constant
+//         assert_eq!(
+//             computed_bytes, G2_MINUS_ONE,
+//             "Computed G2_MINUS_ONE does not match static constant"
+//         );
+//     }
+// }
+
+// use dashu::integer::UBig;
+// use solana_bn254::compression::prelude::alt_bn128_g1_decompress;
+
+// use crate::consts::{MODULUS, NORMALIZE_MODULUS};
+// use crate::errors::BLSError;
+// use crate::g1::G1Point;
+
+// // TODO: Consider replacing the try-and-increment decompression routine with a standard IETF
+// // hash-to-curve mapping (ExpandMsgXMD with SHA-256, Simplified SWU, RO) for BN254 G1.
+
+// pub fn hash_to_curve<T: AsRef<[u8]>>(message: T) -> Result<G1Point, BLSError> {
+//     (0..255)
+//         .find_map(|n: u8| {
+
+//             let hash = solana_nostd_sha256::hashv(&[
+//                 b"BLS-BN254-RO",
+//                 message.as_ref(),
+//                 &[n]
+//             ]);
+
+//             let hash_ubig = UBig::from_be_bytes(&hash);
+
+//             if hash_ubig >= NORMALIZE_MODULUS {
+//                 return None;
+//             }
+
+//             let modulus_ubig = hash_ubig % &MODULUS;
+
+//             match alt_bn128_g1_decompress(&modulus_ubig.to_be_bytes()) {
+//                 Ok(p) => Some(G1Point(p)),
+//                 Err(_) => None,
+//             }
+//         })
+//         .ok_or(BLSError::HashToCurveError)
+// }
+
+// #[cfg(test)]
+// mod tests {
+//     use super::hash_to_curve;
+//     use crate::g1::{G1CompressedPoint, G1Point};
+
+//     #[test]
+//     fn hash_to_curve_is_deterministic() {
+//         let m = b"hash-determinism";
+//         let h1 = hash_to_curve(m).expect("h1");
+//         let h2 = hash_to_curve(m).expect("h2");
+//         assert_eq!(h1.0, h2.0);
+//     }
+
+//     #[test]
+//     fn hash_to_curve_compress_decompress_roundtrip() {
+//         let m = b"hash-roundtrip";
+//         let h = hash_to_curve(m).expect("hash");
+//         let hc = G1CompressedPoint::try_from(h.clone()).expect("compress");
+//         let rt = G1Point::try_from(&hc).expect("decompress");
+//         assert_eq!(h.0, rt.0);
+//     }
+
+//     #[test]
+//     fn hash_to_curve_changes_with_message() {
+//         let h1 = hash_to_curve(b"m1").expect("h1");
+//         let h2 = hash_to_curve(b"m2").expect("h2");
+//         assert_ne!(h1.0, h2.0);
+//     }
+// }
 
 // ----------------------------------------------------------------------------
 //                       SIGNING
@@ -535,12 +868,18 @@ pub fn solana_verify_aggregated_signature(
     message: &[u8],
     domain: Option<&[u8]>,
 ) -> Result<bool, String> {
+
+
     // Hash message to G1 curve point
+    msg!("Hash to curve");
+    sol_log_compute_units();
     let msg_point = solana_hash_to_curve(message, domain)?;
 
     // Compute alpha for the binding between G1 and G2 representations
     // This creates a cryptographic challenge that ensures the G2 aggregate
     // corresponds to the same operator set as the G1 aggregate
+    msg!("Compute alpha");
+    sol_log_compute_units();
     let alpha = compute_alpha(
         &msg_point,
         aggregated_signature,
@@ -549,21 +888,33 @@ pub fn solana_verify_aggregated_signature(
     )?;
 
     // Scale the generators by alpha
+    msg!("G1 Generator");
+    sol_log_compute_units();
     let g1_generator = get_g1_generator(); // Your G1 generator constant
     let scaled_g1_generator = mult_g1(&g1_generator, &alpha)?;
 
     // Scale the aggregated G1 pubkey by alpha
+    msg!("G1 Aggregate");
+    sol_log_compute_units();
     let scaled_aggregated_g1 = mult_g1(aggregated_g1, &alpha)?;
 
     // Compute the left side of pairing equation: H(m) + G1_gen * alpha
+    msg!("Msg Plus One");
+    sol_log_compute_units();
     let msg_plus_scaled_g1 = add_g1(&msg_point, &scaled_g1_generator)?;
 
+
     // Compute the right side: signature + aggregated_g1 * alpha
+    msg!("Sig Plus One");
+    sol_log_compute_units();
     let sig_plus_scaled_g1 = add_g1(aggregated_signature, &scaled_aggregated_g1)?;
 
     // Prepare pairing input for the equation:
     // e(H(m) + G1_gen * alpha, aggregated_g2) = e(signature + aggregated_g1 * alpha, G2_gen)
+    msg!("Pairing Input");
+    sol_log_compute_units();
     let mut pairing_input = Vec::with_capacity(384);
+
 
     // First pairing: e(H(m) + G1_gen * alpha, aggregated_g2)
     pairing_input.extend_from_slice(&msg_plus_scaled_g1);
@@ -574,9 +925,14 @@ pub fn solana_verify_aggregated_signature(
     pairing_input.extend_from_slice(&get_g2_minus_one()); // Pre-computed negated G2 generator
 
     // Execute pairing check
+    msg!("Pairing");
+    sol_log_compute_units();
     let result =
         alt_bn128_pairing_be(&pairing_input).map_err(|e| format!("Pairing failed: {:?}", e))?;
 
+
+    msg!("Result: {}", result == get_bn128_pairing_success_result());
+    sol_log_compute_units();
     // Check if result equals 1 (successful verification)
     Ok(result == get_bn128_pairing_success_result())
 }
@@ -1035,9 +1391,8 @@ fn offchain_g2_to_bytes(point: &G2Affine) -> Result<[u8; 128], String> {
 pub fn offchain_create_operators_bitmap(
     total_operators: usize,
     signing_indices: &[usize],
-) -> Vec<u8> {
-    let bitmap_size = total_operators.div_ceil(8);
-    let mut bitmap = vec![0u8; bitmap_size];
+) -> [u8; 32] {
+    let mut bitmap = [0u8; 32];
     for &index in signing_indices {
         if index < total_operators {
             let byte_index = index / 8;
@@ -1071,18 +1426,34 @@ pub fn offchain_create_operators_bitmap(
 /// signatures[i] corresponds to pubkeys_g2[i] and signing_indices[i]
 #[allow(clippy::type_complexity)]
 pub fn offchain_prepare_vote_data(
-    signatures: &[[u8; 64]],   // Uncompressed G1 signatures
-    pubkeys_g2: &[[u8; 128]],  // Uncompressed G2 public keys
+    g1_signatures: &[[u8; 64]],   // Uncompressed G1 signatures
+    g2_signed_pubkeys: &[[u8; 128]],  // Uncompressed G2 public keys
     signing_indices: &[usize], // Which operators signed
     total_operators: usize,
-) -> Result<([u8; 64], [u8; 128], Vec<u8>), String> {
+) -> Result<([u8; 64], [u8; 128], [u8; 32]), String> {
     // Aggregate and compress signatures
-    let aggregated_signature = aggregate_signatures(signatures)?;
+    let aggregated_signature = aggregate_signatures(g1_signatures)?;
     // Aggregate and compress public keys
-    let aggregated_g2 = offchain_aggregate_g2_pubkeys(pubkeys_g2)?;
+    let aggregated_g2 = offchain_aggregate_g2_pubkeys(g2_signed_pubkeys)?;
     // Create bitmap
     let bitmap = offchain_create_operators_bitmap(total_operators, signing_indices);
     Ok((aggregated_signature, aggregated_g2, bitmap))
+}
+
+#[inline(always)]
+pub fn did_sign_bitmap(
+    bitmap:[u8; 32],
+    index: usize,
+) ->  Result<bool, String> {
+    if index >= bitmap.len() * 8 {
+        return Err("Index out of bounds".to_string());
+    }
+
+    let byte_index = index / 8;
+    let bit_index = index % 8;
+    let byte = bitmap[byte_index];
+    let bit = byte & (1 << bit_index);
+    Ok(bit != 0)
 }
 
 /// Derive a G1 public key from a private key (off-chain)
@@ -1553,7 +1924,6 @@ mod tests {
         // Verify bitmap was created correctly
         // ====================================================================
 
-        assert_eq!(bitmap.len(), 1, "Bitmap should be 1 byte for 1 operator");
         assert_eq!(bitmap[0], 0b00000001, "Bit 0 should be set for operator 0");
     }
 
@@ -1628,7 +1998,6 @@ mod tests {
             .expect("Failed to prepare vote data");
 
             // Verify bitmap
-            assert_eq!(bitmap.len(), 1); // (3 + 7) / 8 = 1 byte
             assert_eq!(bitmap[0], 0b00000111); // Bits 0, 1, 2 set
 
             // ON-CHAIN: Since all signed, signers' G1 = total G1
@@ -1669,7 +2038,6 @@ mod tests {
             .expect("Failed to prepare vote data");
 
             // Verify bitmap
-            assert_eq!(bitmap.len(), 1);
             assert_eq!(bitmap[0], 0b00000101); // Bits 0 and 2 set, bit 1 clear
 
             // ON-CHAIN: Compute signers' G1 by subtracting non-signer
@@ -1712,7 +2080,6 @@ mod tests {
             .expect("Failed to prepare vote data");
 
             // Verify bitmap
-            assert_eq!(bitmap.len(), 1);
             assert_eq!(bitmap[0], 0b00000010); // Only bit 1 set
 
             // ON-CHAIN: Compute signers' G1
@@ -1878,7 +2245,6 @@ mod tests {
         println!("  Bitmap: 0b{:08b} (operators 0 and 2 set)", bitmap[0]);
 
         // Verify bitmap is correct
-        assert_eq!(bitmap.len(), 1, "Should have 1 byte for 3 operators");
         assert_eq!(bitmap[0], 0b00000101, "Bits 0 and 2 should be set");
 
         // ====================================================================

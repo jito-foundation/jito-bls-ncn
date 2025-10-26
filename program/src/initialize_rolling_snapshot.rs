@@ -51,7 +51,7 @@ pub fn process_initialize_rolling_snapshot(
             return Err(ProgramError::AccountAlreadyInitialized);
         }
 
-        account.initialize(bump)?;
+        account.initialize(ncn.key, bump)?;
     }
 
     Ok(())

@@ -6,7 +6,7 @@ use solana_pubkey::Pubkey;
 
 use crate::{
     discriminators::Discriminators,
-    pod::{PodOption, PodU64},
+    pod::PodU64,
     utils::{check_account, load_account, JitoAccount},
 };
 
@@ -14,7 +14,7 @@ use crate::{
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct Config {
-    pub discriminator: PodOption<PodU64>,
+    pub discriminator: PodU64,
     /// The bump seed for the PDA
     pub bump: u8,
     /// The NCN this ncn operator account belongs to
@@ -81,11 +81,7 @@ impl JitoAccount for Config {
     }
 
     fn is_initialized(&self) -> bool {
-        if let Some(discriminator) = self.discriminator() {
-            (*discriminator).get() == Self::DISCRIMINATOR
-        } else {
-            false
-        }
+        self.discriminator.get() == Self::DISCRIMINATOR
     }
 }
 
@@ -100,7 +96,7 @@ impl Config {
             return Err(ProgramError::AccountAlreadyInitialized);
         }
 
-        self.discriminator = PodOption::some(PodU64::from(Self::DISCRIMINATOR));
+        self.discriminator = PodU64::from(Self::DISCRIMINATOR);
 
         self.ncn = *ncn;
         self.admin = *admin;
@@ -110,24 +106,12 @@ impl Config {
         Ok(())
     }
 
-    pub fn discriminator(&self) -> Option<&PodU64> {
-        self.discriminator.as_ref()
+    pub fn discriminator(&self) -> u64 {
+        self.discriminator.get()
     }
 
     pub const fn ncn(&self) -> &Pubkey {
         &self.ncn
-    }
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Config {
-            discriminator: PodOption::none(),
-            bump: 0,
-            ncn: Pubkey::default(),
-            admin: Pubkey::default(),
-            reserved: [0; 256],
-        }
     }
 }
 
