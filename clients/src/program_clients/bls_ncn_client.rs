@@ -8,7 +8,9 @@ use jito_bls_ncn_core::{
     utils::{get_realloc_calls, load_account, JitoAccount},
 };
 use jito_bls_ncn_sdk::bls_ncn_sdk::{
-    bls_operator_address, config_address, consensus_address, initialize_bls_operator_ix, initialize_config_ix, initialize_consensus_ix, initialize_rolling_snapshot_ix, register_bls_operator_ix, rolling_snapshot_address, vote_ix
+    bls_operator_address, config_address, consensus_address, initialize_bls_operator_ix,
+    initialize_config_ix, initialize_consensus_ix, initialize_rolling_snapshot_ix,
+    register_bls_operator_ix, rolling_snapshot_address, vote_ix,
 };
 use solana_compute_budget_interface::ComputeBudgetInstruction;
 use solana_pubkey::Pubkey;
@@ -143,7 +145,6 @@ pub async fn initialize_bls_operator<T: JitoClient>(
     Ok(())
 }
 
-
 pub async fn register_bls_operator<T: JitoClient>(
     jito_client: &T,
     ncn: &Pubkey,
@@ -152,11 +153,7 @@ pub async fn register_bls_operator<T: JitoClient>(
     let admin = jito_client.keypair().insecure_clone();
     let blockhash = jito_client.get_recent_blockhash().await?;
     let tx = Transaction::new_signed_with_payer(
-        &[register_bls_operator_ix(
-            ncn,
-            operator,
-            &admin.pubkey(),
-        )],
+        &[register_bls_operator_ix(ncn, operator, &admin.pubkey())],
         Some(&admin.pubkey()),
         &[&admin],
         blockhash,
@@ -184,7 +181,14 @@ pub async fn vote<T: JitoClient>(
     let tx = Transaction::new_signed_with_payer(
         &[
             ComputeBudgetInstruction::set_compute_unit_limit(1_400_000),
-            vote_ix(ncn, aggregated_g1_signature, aggregated_g2_signed, operators_bitmap_signed, raw_message, consensus_count)
+            vote_ix(
+                ncn,
+                aggregated_g1_signature,
+                aggregated_g2_signed,
+                operators_bitmap_signed,
+                raw_message,
+                consensus_count,
+            ),
         ],
         Some(&payer.pubkey()),
         &[&payer],

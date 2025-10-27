@@ -1,11 +1,21 @@
 #[cfg(test)]
 mod tests {
     use anyhow::{anyhow, Result};
-    use jito_bls_ncn_clients::{jito_clients::JitoClient, program_clients::{
-        bls_ncn_client::{get_consensus, initialize_bls_operator, initialize_config, initialize_consensus, initialize_rolling_snapshot, register_bls_operator, vote, BlsNcnRoot, BlsNcnSignatureRoot},
-        meta_restaking_client::{add_operators_to_test_ncn, create_test_ncn},
-    }};
-    use jito_bls_ncn_core::{bls::{solana_bls::{offchain_prepare_vote_data, solana_sign}, solana_bls_interface::{SolanaBN254G1, SolanaBN254G2, SolanaBN254Keypair}}};
+    use jito_bls_ncn_clients::{
+        jito_clients::JitoClient,
+        program_clients::{
+            bls_ncn_client::{
+                get_consensus, initialize_bls_operator, initialize_config, initialize_consensus,
+                initialize_rolling_snapshot, register_bls_operator, vote, BlsNcnRoot,
+                BlsNcnSignatureRoot,
+            },
+            meta_restaking_client::{add_operators_to_test_ncn, create_test_ncn},
+        },
+    };
+    use jito_bls_ncn_core::bls::{
+        solana_bls::{offchain_prepare_vote_data, solana_sign},
+        solana_bls_interface::{SolanaBN254G1, SolanaBN254G2, SolanaBN254Keypair},
+    };
     use solana_program_test::tokio;
     use solana_pubkey::Pubkey;
 
@@ -15,10 +25,7 @@ mod tests {
     async fn setup_vote_test<T: JitoClient>(
         client: &mut T,
         operator_count: usize,
-    ) -> Result<(
-        Pubkey,
-        BlsNcnRoot,
-    )> {
+    ) -> Result<(Pubkey, BlsNcnRoot)> {
         let mut ncn_root = create_test_ncn(client).await?;
         let ncn = ncn_root.ncn_root.ncn_pubkey;
 
@@ -66,7 +73,8 @@ mod tests {
             None => {
                 let test_message = SolanaBN254Keypair::new_unique()
                     .map_err(|e| anyhow!("Could not make keypair: {}", e))?;
-                test_message.private_key
+                test_message
+                    .private_key
                     .as_slice()
                     .try_into()
                     .map_err(|_| anyhow!("Message is not 32 bytes"))?
@@ -98,15 +106,20 @@ mod tests {
             let signature = solana_sign(
                 &bls_operator.private_key,
                 &bls_ncn_signature_root.message,
-                consensus_count
-            ).map_err(|e| anyhow!("Could not sign: {}", e))?;
+                consensus_count,
+            )
+            .map_err(|e| anyhow!("Could not sign: {}", e))?;
 
             let g1_signature = SolanaBN254G1::new(&signature)
                 .map_err(|e| anyhow!("Could not make G1 signature: {}", e))?;
-            bls_ncn_signature_root.operator_signatures.push(g1_signature.raw);
+            bls_ncn_signature_root
+                .operator_signatures
+                .push(g1_signature.raw);
 
             bls_ncn_signature_root.indexs.push(index);
-            bls_ncn_signature_root.operator_g2_signed.push(bls_operator.public_key.g2.raw);
+            bls_ncn_signature_root
+                .operator_g2_signed
+                .push(bls_operator.public_key.g2.raw);
         }
 
         let operator_count = bls_ncn_root.operator_bls_keypairs.len();
@@ -116,7 +129,8 @@ mod tests {
             &bls_ncn_signature_root.operator_g2_signed,
             &bls_ncn_signature_root.indexs,
             operator_count,
-        ).map_err(|e| anyhow!("Could not prepare vote data: {}", e))?;
+        )
+        .map_err(|e| anyhow!("Could not prepare vote data: {}", e))?;
 
         let aggregated_g1_signature = SolanaBN254G1::new(&aggregated_signature)
             .map_err(|e| anyhow!("Could not make aggregated G1: {}", e))?;
@@ -144,8 +158,9 @@ mod tests {
             &aggregated_g2_signed,
             &bitmap,
             &raw_message,
-            consensus_count
-        ).await?;
+            consensus_count,
+        )
+        .await?;
 
         Ok(())
     }
@@ -159,8 +174,12 @@ mod tests {
         let (ncn, bls_ncn_root) = setup_vote_test(&mut client, operator_count).await?;
         let (raw_message, consensus_count) = setup_ballot(&client, &ncn, None, None).await?;
 
-        let (aggregated_g1_signature, aggregated_g2_signed, bitmap) =
-            prepare_vote_signatures(&bls_ncn_root, &raw_message, consensus_count, &indexes_to_skip)?;
+        let (aggregated_g1_signature, aggregated_g2_signed, bitmap) = prepare_vote_signatures(
+            &bls_ncn_root,
+            &raw_message,
+            consensus_count,
+            &indexes_to_skip,
+        )?;
 
         vote(
             &mut client,
@@ -169,8 +188,9 @@ mod tests {
             &aggregated_g2_signed,
             &bitmap,
             &raw_message,
-            consensus_count
-        ).await?;
+            consensus_count,
+        )
+        .await?;
 
         Ok(())
     }
@@ -184,8 +204,12 @@ mod tests {
         let (ncn, bls_ncn_root) = setup_vote_test(&mut client, operator_count).await?;
         let (raw_message, consensus_count) = setup_ballot(&client, &ncn, None, None).await?;
 
-        let (aggregated_g1_signature, aggregated_g2_signed, bitmap) =
-            prepare_vote_signatures(&bls_ncn_root, &raw_message, consensus_count, &indexes_to_skip)?;
+        let (aggregated_g1_signature, aggregated_g2_signed, bitmap) = prepare_vote_signatures(
+            &bls_ncn_root,
+            &raw_message,
+            consensus_count,
+            &indexes_to_skip,
+        )?;
 
         let result = vote(
             &mut client,
@@ -194,8 +218,9 @@ mod tests {
             &aggregated_g2_signed,
             &bitmap,
             &raw_message,
-            consensus_count
-        ).await;
+            consensus_count,
+        )
+        .await;
 
         assert!(result.is_err());
 
@@ -211,8 +236,12 @@ mod tests {
         let (ncn, bls_ncn_root) = setup_vote_test(&mut client, operator_count).await?;
         let (raw_message, consensus_count) = setup_ballot(&client, &ncn, None, Some(10)).await?;
 
-        let (aggregated_g1_signature, aggregated_g2_signed, bitmap) =
-            prepare_vote_signatures(&bls_ncn_root, &raw_message, consensus_count, &indexes_to_skip)?;
+        let (aggregated_g1_signature, aggregated_g2_signed, bitmap) = prepare_vote_signatures(
+            &bls_ncn_root,
+            &raw_message,
+            consensus_count,
+            &indexes_to_skip,
+        )?;
 
         let result = vote(
             &mut client,
@@ -221,14 +250,14 @@ mod tests {
             &aggregated_g2_signed,
             &bitmap,
             &raw_message,
-            consensus_count
-        ).await;
+            consensus_count,
+        )
+        .await;
 
         assert!(result.is_err());
 
         Ok(())
     }
-
 
     #[tokio::test]
     async fn test_multiple_votes() -> Result<()> {
@@ -241,8 +270,12 @@ mod tests {
         for _ in 0..5 {
             let (raw_message, consensus_count) = setup_ballot(&client, &ncn, None, None).await?;
 
-            let (aggregated_g1_signature, aggregated_g2_signed, bitmap) =
-                prepare_vote_signatures(&bls_ncn_root, &raw_message, consensus_count, &indexes_to_skip)?;
+            let (aggregated_g1_signature, aggregated_g2_signed, bitmap) = prepare_vote_signatures(
+                &bls_ncn_root,
+                &raw_message,
+                consensus_count,
+                &indexes_to_skip,
+            )?;
 
             vote(
                 &mut client,
@@ -251,8 +284,9 @@ mod tests {
                 &aggregated_g2_signed,
                 &bitmap,
                 &raw_message,
-                consensus_count
-            ).await?;
+                consensus_count,
+            )
+            .await?;
         }
 
         Ok(())
@@ -267,8 +301,12 @@ mod tests {
         let (ncn, bls_ncn_root) = setup_vote_test(&mut client, operator_count as usize).await?;
         let (raw_message, consensus_count) = setup_ballot(&client, &ncn, None, None).await?;
 
-        let (aggregated_g1_signature, aggregated_g2_signed, bitmap) =
-            prepare_vote_signatures(&bls_ncn_root, &raw_message, consensus_count, &indexes_to_skip)?;
+        let (aggregated_g1_signature, aggregated_g2_signed, bitmap) = prepare_vote_signatures(
+            &bls_ncn_root,
+            &raw_message,
+            consensus_count,
+            &indexes_to_skip,
+        )?;
 
         vote(
             &mut client,
@@ -277,17 +315,21 @@ mod tests {
             &aggregated_g2_signed,
             &bitmap,
             &raw_message,
-            consensus_count
-        ).await?;
-
+            consensus_count,
+        )
+        .await?;
 
         // TEST MAX CU
         // Within CU, we can get through 151 non-signers. 256 - 105 = 151 ( not signing )
         let one_third = operator_count / 3;
         let indexes_to_skip: Vec<usize> = (0..one_third as usize).collect();
         let (raw_message, consensus_count) = setup_ballot(&client, &ncn, None, None).await?;
-        let (aggregated_g1_signature, aggregated_g2_signed, bitmap) =
-            prepare_vote_signatures(&bls_ncn_root, &raw_message, consensus_count, &indexes_to_skip)?;
+        let (aggregated_g1_signature, aggregated_g2_signed, bitmap) = prepare_vote_signatures(
+            &bls_ncn_root,
+            &raw_message,
+            consensus_count,
+            &indexes_to_skip,
+        )?;
 
         vote(
             &mut client,
@@ -296,16 +338,20 @@ mod tests {
             &aggregated_g2_signed,
             &bitmap,
             &raw_message,
-            consensus_count
-        ).await?;
-
+            consensus_count,
+        )
+        .await?;
 
         // FAIL THRESHOLD
         let one_third = operator_count / 3 + 1;
         let indexes_to_skip: Vec<usize> = (0..one_third as usize).collect();
         let (raw_message, consensus_count) = setup_ballot(&client, &ncn, None, None).await?;
-        let (aggregated_g1_signature, aggregated_g2_signed, bitmap) =
-            prepare_vote_signatures(&bls_ncn_root, &raw_message, consensus_count, &indexes_to_skip)?;
+        let (aggregated_g1_signature, aggregated_g2_signed, bitmap) = prepare_vote_signatures(
+            &bls_ncn_root,
+            &raw_message,
+            consensus_count,
+            &indexes_to_skip,
+        )?;
 
         let result = vote(
             &mut client,
@@ -314,8 +360,9 @@ mod tests {
             &aggregated_g2_signed,
             &bitmap,
             &raw_message,
-            consensus_count
-        ).await;
+            consensus_count,
+        )
+        .await;
 
         assert!(result.is_err());
 

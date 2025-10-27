@@ -2,7 +2,8 @@
 mod tests {
     use anyhow::Result;
     use jito_bls_ncn_clients::program_clients::{
-        bls_ncn_client::{get_consensus, initialize_consensus}, meta_restaking_client::create_test_ncn,
+        bls_ncn_client::{get_consensus, initialize_consensus},
+        meta_restaking_client::create_test_ncn,
     };
     use solana_program_test::tokio;
 

@@ -41,6 +41,7 @@ solana-account-info = "3.0.0"
 solana-bn254 = "3.0.0"
 solana-client = "3.0.0"
 solana-commitment-config = "3.0.0"
+solana-compute-budget-interface = "3.0.0"
 solana-epoch-info = "3.0.0"
 solana-instruction = "3.0.0"
 solana-keypair = "3.0.0"
@@ -58,7 +59,6 @@ solana-system-interface = { version = "2.0.0", features = ["bincode"] }
 solana-system-transaction = "3.0.0"
 solana-transaction = "3.0.0"
 spl-associated-token-account-interface = "2.0.0"
-solana-compute-budget-interface = "3.0.0"
 # jito-bytemuck = { package = "jito-bytemuck", git = "https://github.com/jito-foundation/restaking", branch = "master" }
 # bytemuck = { version = "1.16.3", features = ["derive", "min_const_generics"] }
 spl-token-interface = "2.0.0"

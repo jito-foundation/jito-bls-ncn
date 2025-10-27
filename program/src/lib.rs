@@ -1,12 +1,12 @@
 use solana_program::declare_id;
 
+pub mod errors;
 pub mod initialize_bls_operator;
 pub mod initialize_config;
 pub mod initialize_consensus;
 pub mod initialize_rolling_snapshot;
 pub mod register_bls_operator;
 pub mod vote;
-pub mod errors;
 
 declare_id!("3Shbx5RwJtmD4EZHu5XmSkqaTxruikKmEU2Qx4BcccU5");
 

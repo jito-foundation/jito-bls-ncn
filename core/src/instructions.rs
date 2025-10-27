@@ -92,7 +92,6 @@ impl InitializeConsensusIxData {
     }
 }
 
-
 // -------------------- INITIALIZE ROLLING SNAPSHOT ---------------
 
 /// [rolling_snapshot, ncn, payer, system_program]
@@ -178,11 +177,17 @@ unsafe impl JitoIxData for RegisterBlsOperatorIxData {
     }
 }
 
-impl RegisterBlsOperatorIxData {
-    pub fn new() -> Self {
+impl Default for RegisterBlsOperatorIxData {
+    fn default() -> Self {
         Self {
             discriminator: PodU64::from(Self::DISCRIMINATOR),
         }
+    }
+}
+
+impl RegisterBlsOperatorIxData {
+    pub fn new() -> Self {
+        Self::default()
     }
 }
 
@@ -209,8 +214,13 @@ unsafe impl JitoIxData for VoteIxData {
 }
 
 impl VoteIxData {
-    pub fn new(aggregated_g1_signature: [u8; 64], aggregated_g2_signed: [u8; 128], operators_bitmap_signed: [u8; 32], raw_message: [u8; 32], consensus_count: u64) -> Self {
-
+    pub fn new(
+        aggregated_g1_signature: [u8; 64],
+        aggregated_g2_signed: [u8; 128],
+        operators_bitmap_signed: [u8; 32],
+        raw_message: [u8; 32],
+        consensus_count: u64,
+    ) -> Self {
         Self {
             discriminator: PodU64::from(Self::DISCRIMINATOR),
             aggregated_g1_signature,

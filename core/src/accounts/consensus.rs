@@ -106,7 +106,11 @@ impl Consensus {
     }
 
     pub fn increment_consensus_count(&mut self) -> Result<(), ProgramError> {
-        let new_count = self.consensus_count.get().checked_add(1).ok_or(ProgramError::ArithmeticOverflow)?;
+        let new_count = self
+            .consensus_count
+            .get()
+            .checked_add(1)
+            .ok_or(ProgramError::ArithmeticOverflow)?;
         self.consensus_count = PodU64::from(new_count);
         Ok(())
     }

@@ -2,7 +2,8 @@ use jito_bls_ncn_core::{
     accounts::*,
     bls::solana_bls_interface::{SolanaBN254G1, SolanaBN254G2, SolanaBN254Keypair},
     instructions::{
-        InitializeBlsOperatorIxData, InitializeConfigIxData, InitializeConsensusIxData, InitializeRollingSnapshotIxData, RegisterBlsOperatorIxData, VoteIxData
+        InitializeBlsOperatorIxData, InitializeConfigIxData, InitializeConsensusIxData,
+        InitializeRollingSnapshotIxData, RegisterBlsOperatorIxData, VoteIxData,
     },
     utils::{JitoAccount, JitoIxData},
 };
@@ -140,11 +141,7 @@ pub fn initialize_bls_operator_ix(
     }
 }
 
-pub fn register_bls_operator_ix(
-    ncn: &Pubkey,
-    operator: &Pubkey,
-    admin: &Pubkey,
-) -> Instruction {
+pub fn register_bls_operator_ix(ncn: &Pubkey, operator: &Pubkey, admin: &Pubkey) -> Instruction {
     let program_id = id();
     let system_program = solana_system_interface::program::id();
 
@@ -153,7 +150,8 @@ pub fn register_bls_operator_ix(
     let (bls_operator, _, _) = bls_operator_address(operator);
 
     let (restaking_config, _, _) = crate::restaking_sdk::config_address();
-    let (ncn_operator_state, _, _) = crate::restaking_sdk::ncn_operator_state_address(ncn, operator);
+    let (ncn_operator_state, _, _) =
+        crate::restaking_sdk::ncn_operator_state_address(ncn, operator);
 
     // let [config, rolling_snapshot, bls_operator, restaking_config, ncn, operator, ncn_operator_state, admin, system_program]
     let accounts = vec![

@@ -1,10 +1,10 @@
 use jito_bls_ncn_core::accounts::consensus::Consensus;
-use jito_bls_ncn_core::instructions::{InitializeConsensusIxData};
+use jito_bls_ncn_core::instructions::InitializeConsensusIxData;
 use jito_bls_ncn_core::programs::restaking_core::Ncn;
-use jito_bls_ncn_core::utils::{create_or_realloc, JitoAccount};
-use jito_bls_ncn_core::{
-    utils::{check_signer, check_system_program, load_account_mut_unchecked, load_ix_data},
+use jito_bls_ncn_core::utils::{
+    check_signer, check_system_program, load_account_mut_unchecked, load_ix_data,
 };
+use jito_bls_ncn_core::utils::{create_or_realloc, JitoAccount};
 use solana_account_info::AccountInfo;
 use solana_msg::msg;
 use solana_program::{rent::Rent, sysvar::Sysvar};
