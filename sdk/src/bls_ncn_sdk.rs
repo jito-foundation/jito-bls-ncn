@@ -2,7 +2,7 @@ use jito_bls_ncn_core::{
     accounts::*,
     bls::solana_bls_interface::{SolanaBN254G1, SolanaBN254G2, SolanaBN254Keypair},
     instructions::{
-        InitializeBlsOperatorIxData, InitializeConfigIxData, InitializeRollingSnapshotIxData, RegisterBlsOperatorIxData, VoteIxData
+        InitializeBlsOperatorIxData, InitializeConfigIxData, InitializeConsensusIxData, InitializeRollingSnapshotIxData, RegisterBlsOperatorIxData, VoteIxData
     },
     utils::{JitoAccount, JitoIxData},
 };
@@ -38,7 +38,7 @@ pub fn initialize_config_ix(ncn: &Pubkey, admin: &Pubkey, payer: &Pubkey) -> Ins
 
     let (pda, bump, _) = config_address(ncn);
 
-    //  [rolling_snapshot, ncn, admin, payer, system_program]
+    //  [config, ncn, admin, payer, system_program]
     let accounts = vec![
         AccountMeta::new(pda, false),
         AccountMeta::new_readonly(*ncn, false),
@@ -48,6 +48,30 @@ pub fn initialize_config_ix(ncn: &Pubkey, admin: &Pubkey, payer: &Pubkey) -> Ins
     ];
 
     let ix_data = InitializeConfigIxData::new(bump);
+    let ix_data_bytes = unsafe { ix_data.to_bytes() };
+
+    Instruction {
+        program_id,
+        accounts,
+        data: ix_data_bytes.to_vec(),
+    }
+}
+
+pub fn initialize_consensus_ix(ncn: &Pubkey, payer: &Pubkey) -> Instruction {
+    let program_id = id();
+    let system_program = solana_system_interface::program::id();
+
+    let (pda, bump, _) = consensus_address(ncn);
+
+    //  [consensus, ncn, payer, system_program]
+    let accounts = vec![
+        AccountMeta::new(pda, false),
+        AccountMeta::new_readonly(*ncn, false),
+        AccountMeta::new(*payer, true),
+        AccountMeta::new_readonly(system_program, false),
+    ];
+
+    let ix_data = InitializeConsensusIxData::new(bump);
     let ix_data_bytes = unsafe { ix_data.to_bytes() };
 
     Instruction {
@@ -154,30 +178,31 @@ pub fn register_bls_operator_ix(
     }
 }
 
-// pub aggregated_g1_signature: [u8; 64],
-// pub aggregated_g2_signed: [u8; 64],
-// pub operators_bitmap_signed: [u8; 32],
-// pub message: [u8; 32],
 pub fn vote_ix(
     ncn: &Pubkey,
     aggregated_g1_signature: &SolanaBN254G1,
     aggregated_g2_signed: &SolanaBN254G2,
     operators_bitmap_signed: &[u8; 32],
-    message: &[u8; 32],
+    raw_message: &[u8; 32],
+    consensus_count: u64,
 ) -> Instruction {
     let program_id = id();
     let (rolling_snapshot, _, _) = rolling_snapshot_address(ncn);
+    let (consensus, _, _) = consensus_address(ncn);
 
-    // [ncn, system_program]
+    // [rolling_snapshot, consensus, ncn]
     let accounts = vec![
-        AccountMeta::new(rolling_snapshot, false),
+        AccountMeta::new_readonly(rolling_snapshot, false),
+        AccountMeta::new(consensus, false),
+        AccountMeta::new_readonly(*ncn, false),
     ];
 
     let ix_data = VoteIxData::new(
         aggregated_g1_signature.raw,
         aggregated_g2_signed.raw,
         *operators_bitmap_signed,
-        *message,
+        *raw_message,
+        consensus_count,
     );
     let ix_data_bytes = unsafe { ix_data.to_bytes() };
 

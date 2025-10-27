@@ -101,6 +101,16 @@ impl Consensus {
         Ok(())
     }
 
+    pub fn consensus_count(&self) -> u64 {
+        self.consensus_count.get()
+    }
+
+    pub fn increment_consensus_count(&mut self) -> Result<(), ProgramError> {
+        let new_count = self.consensus_count.get().checked_add(1).ok_or(ProgramError::ArithmeticOverflow)?;
+        self.consensus_count = PodU64::from(new_count);
+        Ok(())
+    }
+
     pub fn discriminator(&self) -> u64 {
         self.discriminator.get()
     }

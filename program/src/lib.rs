@@ -2,9 +2,11 @@ use solana_program::declare_id;
 
 pub mod initialize_bls_operator;
 pub mod initialize_config;
+pub mod initialize_consensus;
 pub mod initialize_rolling_snapshot;
 pub mod register_bls_operator;
 pub mod vote;
+pub mod errors;
 
 declare_id!("3Shbx5RwJtmD4EZHu5XmSkqaTxruikKmEU2Qx4BcccU5");
 
@@ -21,6 +23,7 @@ mod entrypoint {
 
     use crate::initialize_bls_operator::process_initialize_bls_operator;
     use crate::initialize_config::process_initialize_config;
+    use crate::initialize_consensus::process_initialize_consensus;
     use crate::initialize_rolling_snapshot::process_initialize_rolling_snapshot;
     use crate::register_bls_operator::process_register_bls_operator;
     use crate::vote::process_vote;
@@ -55,6 +58,10 @@ mod entrypoint {
             JitoBlsNCNInstructions::InitializeConfig => {
                 msg!("Initializing Config");
                 process_initialize_config(program_id, accounts, instruction_data)
+            }
+            JitoBlsNCNInstructions::InitializeConsensus => {
+                msg!("Initializing Consensus");
+                process_initialize_consensus(program_id, accounts, instruction_data)
             }
             JitoBlsNCNInstructions::InitializeRollingSnapshot => {
                 msg!("Reallocating Rolling Snapshot");

@@ -87,8 +87,6 @@ use ark_ff::{BigInteger, Field, One, PrimeField};
 use solana_bn254::{compression::prelude::alt_bn128_g1_decompress, prelude::{
     alt_bn128_g1_addition_be, alt_bn128_g1_multiplication_be, alt_bn128_pairing_be,
 }};
-use solana_msg::msg;
-use solana_program::log::sol_log_compute_units;
 
 // ----------------------------------------------------------------------------
 //                       CONSTANTS
@@ -133,6 +131,15 @@ pub const G2_MINUS_ONE: [u8; 128] = [
 pub const BN128_PAIRING_SUCCESS_RESULT: [u8; 32] = [
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+];
+
+/// The last multiple of the modulus before 2^256
+/// 0xf1f5883e65f820d099915c908786b9d3f58714d70a38f4c22ca2bc723a70f263
+const NORMALIZE_MODULUS_BYTES: [u8; 32] = [
+    0xf1, 0xf5, 0x88, 0x3e, 0x65, 0xf8, 0x20, 0xd0,
+    0x99, 0x91, 0x5c, 0x90, 0x87, 0x86, 0xb9, 0xd3,
+    0xf5, 0x87, 0x14, 0xd7, 0x0a, 0x38, 0xf4, 0xc2,
+    0x2c, 0xa2, 0xbc, 0x72, 0x3a, 0x70, 0xf2, 0x63,
 ];
 
 // ----------------------------------------------------------------------------
@@ -202,78 +209,72 @@ pub fn solana_hash(data: &[u8]) -> [u8; 32] {
 /// # Security
 /// - Deterministic: Same inputs always produce same output
 /// - Domain separation prevents cross-protocol replay attacks
-pub fn solana_hash_to_curve(message: &[u8], domain: Option<&[u8]>) -> Result<[u8; 64], String> {
-    let hasher_input = match domain {
-        Some(domain) => union_unique(message, domain),
-        None => message.to_vec(),
-    };
-    let hash = solana_hash(&hasher_input);
-    alt_solana_map_to_curve_simple(&hash)
-    // alt_solana_map_to_curve(&hash)
-    // solana_map_to_curve(&hash)
+pub fn solana_hash_to_curve(message: &[u8], consensus_count: u64) -> Result<[u8; 64], String> {
+    let hash = solana_hash(message);
+    alt_solana_map_to_curve_simple(&hash, consensus_count)
 }
 
-/// Concatenate domain and message with varint-encoded length prefix
-///
-/// Creates a unique byte sequence for each (domain, message) pair by prepending
-/// the domain with its length encoded as a varint. This ensures no collisions
-/// between different domain/message combinations.
-///
-/// # Arguments
-/// * `message` - The message bytes
-/// * `domain` - The domain separator bytes
-///
-/// # Returns
-/// * `Vec<u8>` - Concatenation: varint(domain.len()) || domain || message
-///
-/// # Format
-/// - First bytes: Domain length as varint (1-10 bytes depending on size)
-/// - Next bytes: Domain bytes
-/// - Final bytes: Message bytes
-///
-/// # Example
-/// ```
-/// let result = union_unique(b"hello", b"DOMAIN");
-/// // result = [0x06, b'D', b'O', b'M', b'A', b'I', b'N', b'h', b'e', b'l', b'l', b'o']
-/// //           ^len=6
-/// ```
-///
-/// # Note
-/// Adapted from commonware's implementation for compatibility.
-pub fn union_unique(message: &[u8], domain: &[u8]) -> Vec<u8> {
-    let namespace_len = domain.len();
+// /// Concatenate domain and message with varint-encoded length prefix
+// ///
+// /// Creates a unique byte sequence for each (domain, message) pair by prepending
+// /// the domain with its length encoded as a varint. This ensures no collisions
+// /// between different domain/message combinations.
+// ///
+// /// # Arguments
+// /// * `message` - The message bytes
+// /// * `domain` - The domain separator bytes
+// ///
+// /// # Returns
+// /// * `Vec<u8>` - Concatenation: varint(domain.len()) || domain || message
+// ///
+// /// # Format
+// /// - First bytes: Domain length as varint (1-10 bytes depending on size)
+// /// - Next bytes: Domain bytes
+// /// - Final bytes: Message bytes
+// ///
+// /// # Example
+// /// ```
+// /// let result = union_unique(b"hello", b"DOMAIN");
+// /// // result = [0x06, b'D', b'O', b'M', b'A', b'I', b'N', b'h', b'e', b'l', b'l', b'o']
+// /// //           ^len=6
+// /// ```
+// ///
+// /// # Note
+// /// Adapted from commonware's implementation for compatibility.
+// pub fn union_unique(message: &[u8], domain: &[u8]) -> Vec<u8> {
+//     let namespace_len = domain.len();
 
-    // Calculate total size needed
-    let mut varint_size = 1;
-    let mut temp = namespace_len;
-    while temp >= 0x80 {
-        varint_size += 1;
-        temp >>= 7;
-    }
+//     // Calculate total size needed
+//     let mut varint_size = 1;
+//     let mut temp = namespace_len;
+//     while temp >= 0x80 {
+//         varint_size += 1;
+//         temp >>= 7;
+//     }
 
-    // Allocate result vector with exact capacity
-    let mut result = Vec::with_capacity(varint_size + namespace_len + message.len());
+//     // Allocate result vector with exact capacity
+//     let mut result = Vec::with_capacity(varint_size + namespace_len + message.len());
 
-    // Encode namespace length as varint
-    let mut value = namespace_len;
-    if value == 0 {
-        result.push(0);
-    } else {
-        // Encode bytes with continuation bit
-        while value >= 0x80 {
-            result.push((value as u8 & 0x7F) | 0x80);
-            value >>= 7;
-        }
-        // Last byte (no continuation bit)
-        result.push(value as u8);
-    }
+//     // Encode namespace length as varint
+//     let mut value = namespace_len;
+//     if value == 0 {
+//         result.push(0);
+//     } else {
+//         // Encode bytes with continuation bit
+//         while value >= 0x80 {
+//             result.push((value as u8 & 0x7F) | 0x80);
+//             value >>= 7;
+//         }
+//         // Last byte (no continuation bit)
+//         result.push(value as u8);
+//     }
 
-    // Append namespace and message
-    result.extend_from_slice(domain);
-    result.extend_from_slice(message);
+//     // Append namespace and message
+//     result.extend_from_slice(domain);
+//     result.extend_from_slice(message);
 
-    result
-}
+//     result
+// }
 
 /// Map a 32-byte hash to a valid point on the BN254 G1 curve
 ///
@@ -301,7 +302,7 @@ pub fn union_unique(message: &[u8], domain: &[u8]) -> Vec<u8> {
 ///
 /// # Reference
 /// https://github.com/Layr-Labs/eigenlayer-middleware/blob/1feb6ae7e12f33ce8eefb361edb69ee26c118b5d/src/libraries/BN254.sol#L292
-fn solana_map_to_curve(bytes: &[u8; 32]) -> Result<[u8; 64], String> {
+fn _solana_map_to_curve(bytes: &[u8; 32]) -> Result<[u8; 64], String> {
     let one = Fq::one();
     let three = Fq::from(3u64);
     let mut x = Fq::from_be_bytes_mod_order(bytes);
@@ -337,102 +338,58 @@ fn solana_map_to_curve(bytes: &[u8; 32]) -> Result<[u8; 64], String> {
     }
 }
 
-/// Hash a message to a point on the BN254 G1 curve using try-and-increment with decompression
+/// Map a 32-byte message to a valid point on the BN254 G1 curve using hash-and-increment
 ///
-/// More efficient implementation that leverages Solana's alt_bn128_g1_decompress syscall
-/// instead of computing field arithmetic operations.
+/// Implements a hash-then-try-and-increment algorithm that avoids modulo bias by
+/// rejecting hash outputs >= field modulus before reduction. Uses Solana's native
+/// alt_bn128_g1_decompress syscall for efficient point recovery.
 ///
 /// # Arguments
-/// * `message` - The message bytes to hash to the curve
-/// * `domain` - Optional domain separator for protocol isolation
+/// * `bytes` - 32-byte message to hash (typically a domain-separated message)
 ///
 /// # Returns
-/// * `Ok([u8; 64])` - Uncompressed G1 point (X || Y) in big-endian
-/// * `Err(String)` - If mapping fails after 255 attempts
+/// * `Ok([u8; 64])` - Valid G1 point (X || Y) in big-endian
+/// * `Err(String)` - Only if all 255 counter values fail (extremely unlikely)
 ///
 /// # Algorithm
-/// 1. For counter n from 0 to 254:
-///    - hash = SHA256(domain || message || n)
-///    - Try to decompress hash as x-coordinate
-///    - If successful, return the point
+/// 1. hash = SHA256(message || counter) where counter ∈ [0, 255)
+/// 2. If hash >= field_modulus (as integers), skip to avoid modulo bias
+/// 3. x = hash mod p (field reduction)
+/// 4. Try to decompress x to (x, y) using alt_bn128_g1_decompress
+/// 5. If successful, return point; otherwise increment counter and repeat
 ///
-/// # Note
-/// This produces DIFFERENT outputs than the EigenLayer-compatible version.
-/// Use only if you don't need compatibility with existing EigenLayer systems.
-pub fn alt_solana_map_to_curve(
-    bytes: &[u8; 32]
-) -> Result<[u8; 64], String> {
+/// # Differences from `_solana_map_to_curve`
+/// - Hashes with counter instead of incrementing field element directly
+/// - Uses Solana syscall (alt_bn128_g1_decompress) instead of arkworks sqrt
+/// - Normalizes hash values to avoid modulo bias in hash-to-field mapping
+/// - More compute-efficient on Solana due to native syscall usage
+///
+/// # Security
+/// - Deterministic: Same input always produces same output
+/// - Uniform distribution: Normalization prevents modulo bias
+/// - Not constant-time: Acceptable for verification, not for key generation
+/// - Typically finds valid point within first few iterations (~50% success per try)
+///
+/// # Compute Units
+/// Approximately 1,000-3,000 CU depending on number of iterations needed
+pub fn alt_solana_map_to_curve_simple(hashed_message: &[u8; 32], consensus_count: u64) -> Result<[u8; 64], String> {
 
-    // Try up to 255 different counter values
-    for counter in 0u8..=254 {
-        // Create hash with counter: SHA256(base_input || counter)
-        let mut hash_input = Vec::with_capacity(bytes.len() + 1);
-        hash_input.extend_from_slice(bytes);
-        hash_input.push(counter);
-
-        let hash = solana_hash(&hash_input);
-
-        // Try to decompress the hash as an x-coordinate
-        // The decompression syscall expects the x-coordinate with a sign bit
-        // We'll try both possible sign bits (0x02 for even y, 0x03 for odd y)
-        for prefix in [0x02u8, 0x03u8] {
-            let mut compressed = vec![prefix];
-            compressed.extend_from_slice(&hash);
-
-            // Try to decompress as a G1 point
-            match alt_bn128_g1_decompress(&compressed) {
-                Ok(point) => {
-                    // Decompression successful - point is valid and in correct subgroup
-                    // The syscall returns 64 bytes: x || y in big-endian
-                    if point.len() == 64 {
-                        let mut result = [0u8; 64];
-                        result.copy_from_slice(&point);
-                        return Ok(result);
-                    }
-                }
-                Err(_) => continue, // Try next prefix or counter
+    fn ge_be(a: &[u8; 32], b: &[u8; 32]) -> bool {
+        for i in 0..32 {
+            if a[i] != b[i] {
+                return a[i] > b[i]; // lexicographic BE compare
             }
         }
+        true
     }
 
-    Err("Failed to find valid curve point after 255 attempts".to_string())
-}
-
-/// The BN254 field modulus
-/// 0x30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd47
-const MODULUS_BYTES: [u8; 32] = [
-    0x30, 0x64, 0x4e, 0x72, 0xe1, 0x31, 0xa0, 0x29,
-    0xb8, 0x50, 0x45, 0xb6, 0x81, 0x81, 0x58, 0x5d,
-    0x97, 0x81, 0x6a, 0x91, 0x68, 0x71, 0xca, 0x8d,
-    0x3c, 0x20, 0x8c, 0x16, 0xd8, 0x7c, 0xfd, 0x47,
-];
-
-/// The last multiple of the modulus before 2^256
-/// 0xf1f5883e65f820d099915c908786b9d3f58714d70a38f4c22ca2bc723a70f263
-const NORMALIZE_MODULUS_BYTES: [u8; 32] = [
-    0xf1, 0xf5, 0x88, 0x3e, 0x65, 0xf8, 0x20, 0xd0,
-    0x99, 0x91, 0x5c, 0x90, 0x87, 0x86, 0xb9, 0xd3,
-    0xf5, 0x87, 0x14, 0xd7, 0x0a, 0x38, 0xf4, 0xc2,
-    0x2c, 0xa2, 0xbc, 0x72, 0x3a, 0x70, 0xf2, 0x63,
-];
-
-// Compare 32-byte big-endian arrays as integers without reducing to Fq
-fn ge_be(a: &[u8; 32], b: &[u8; 32]) -> bool {
-    for i in 0..32 {
-        if a[i] != b[i] {
-            return a[i] > b[i]; // lexicographic BE compare
-        }
-    }
-    true
-}
-
-pub fn alt_solana_map_to_curve_simple(bytes: &[u8; 32]) -> Result<[u8; 64], String> {
     // DO NOT reduce NORMALIZE_MODULUS_BYTES into Fq
     const MOD_NORM_BE: [u8; 32] = NORMALIZE_MODULUS_BYTES;
 
     for counter in 0u8..u8::MAX {
-        // msg || counter(u8) — matches your current concatenation
-        let hash_input = [&bytes[..], &[counter]].concat();
+        // hashed_message || consensus_count || counter(u8) — matches your current concatenation
+        let consensus_bytes = consensus_count.to_le_bytes();
+        let hash_input = [hashed_message.as_slice(), consensus_bytes.as_slice(), &[counter]].concat();
         let hash = solana_hash(&hash_input); // 32 bytes, SHA-256 on Solana
 
         // 1) Normalization check in integer space (avoid modulo bias)
@@ -461,210 +418,6 @@ pub fn alt_solana_map_to_curve_simple(bytes: &[u8; 32]) -> Result<[u8; 64], Stri
 
     Err("Failed to find valid curve point after 1_000_000 attempts".to_string())
 }
-
-// pub fn alt_solana_map_to_curve_simple(
-//     bytes: &[u8; 32],
-// ) -> Result<[u8; 64], String> {
-//     // NORMALIZE_MODULUS as Fq field element
-//     let normalize_modulus = Fq::from_be_bytes_mod_order(&NORMALIZE_MODULUS_BYTES);
-
-//     for counter in 0u64..1_000_000 {
-//         let hash_input = [
-//             b"BLS-BN254-RO",
-//             &bytes[..],
-//             &counter.to_be_bytes(),
-//             // &[counter]
-//         ].concat();
-
-//         let hash = solana_hash(&hash_input);
-
-//         // Convert to field element (automatically does modulo)
-//         let hash_fq = Fq::from_be_bytes_mod_order(&hash);
-
-//         // Check normalization bound
-//         if hash_fq >= normalize_modulus {
-//             continue;
-//         }
-
-//         // Get the reduced bytes
-//         let x_coord_bytes = hash_fq.into_bigint().to_bytes_be();
-//         let mut x_coord = [0u8; 32];
-//         x_coord.copy_from_slice(&x_coord_bytes);
-
-//         // Try to decompress
-//         match alt_bn128_g1_decompress(&x_coord) {
-//             Ok(point) if point.len() == 64 => {
-//                 let mut result = [0u8; 64];
-//                 result.copy_from_slice(&point);
-//                 return Ok(result);
-//             }
-//             _ => continue,
-//         }
-//     }
-
-//     Err("Failed to find valid curve point after 1_000_000 attempts".to_string())
-// }
-
-// use dashu::integer::UBig;
-
-// /// MODULUS: The modulus Fq2
-// /// 0x30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd47
-// pub static MODULUS: UBig = unsafe {
-//     UBig::from_static_words(&[
-//         0x3c208c16d87cfd47,
-//         0x97816a916871ca8d,
-//         0xb85045b68181585d,
-//         0x30644e72e131a029,
-//     ])
-// };
-
-// /// The last multiple of the modulus before 2^256 used to normalize
-// /// hash values for our signing scheme.
-// /// 0xf1f5883e65f820d099915c908786b9d3f58714d70a38f4c22ca2bc723a70f263
-// pub static NORMALIZE_MODULUS: UBig = unsafe {
-//     UBig::from_static_words(&[
-//         0x2ca2bc723a70f263,
-//         0xf58714d70a38f4c2,
-//         0x99915c908786b9d3,
-//         0xf1f5883e65f820d0,
-//     ])
-// };
-
-// pub const G1_MINUS_ONE: [u8; 64] = [
-//     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-//     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-//     0x00, 0x00, 0x00, 0x01,
-//     0xb0, 0x64, 0x4e, 0x72, 0xe1, 0x31, 0xa0, 0x29, 0xb8, 0x50, 0x45, 0xb6, 0x81, 0x81,
-//     0x58, 0x5d, 0x97, 0x81, 0x6a, 0x91, 0x68, 0x71, 0xca, 0x8d, 0x3c, 0x20, 0x8c, 0x16,
-//     0xd8, 0x7c, 0xfd, 0x45,
-// ];
-
-// pub const G2_MINUS_ONE: [u8; 128] = [
-//     0x19, 0x8e, 0x93, 0x93, 0x92, 0x0d, 0x48, 0x3a, 0x72, 0x60, 0xbf, 0xb7, 0x31, 0xfb, 0x5d, 0x25,
-//     0xf1, 0xaa, 0x49, 0x33, 0x35, 0xa9, 0xe7, 0x12, 0x97, 0xe4, 0x85, 0xb7, 0xae, 0xf3, 0x12, 0xc2,
-//     0x18, 0x00, 0xde, 0xef, 0x12, 0x1f, 0x1e, 0x76, 0x42, 0x6a, 0x00, 0x66, 0x5e, 0x5c, 0x44, 0x79,
-//     0x67, 0x43, 0x22, 0xd4, 0xf7, 0x5e, 0xda, 0xdd, 0x46, 0xde, 0xbd, 0x5c, 0xd9, 0x92, 0xf6, 0xed,
-//     0xa7, 0x5d, 0xc4, 0xa2, 0x88, 0xd1, 0xaf, 0xb3, 0xcb, 0xb1, 0xac, 0x09, 0x18, 0x75, 0x24, 0xc7,
-//     0xdb, 0x36, 0x39, 0x5d, 0xf7, 0xbe, 0x3b, 0x99, 0xe6, 0x73, 0xb1, 0x3a, 0x07, 0x5a, 0x65, 0xec,
-//     0x1d, 0x9b, 0xef, 0xcd, 0x05, 0xa5, 0x32, 0x3e, 0x6d, 0xa4, 0xd4, 0x35, 0xf3, 0xb6, 0x17, 0xcd,
-//     0xb3, 0xaf, 0x83, 0x28, 0x5c, 0x2d, 0xf7, 0x11, 0xef, 0x39, 0xc0, 0x15, 0x71, 0x82, 0x7f, 0x9d,
-// ];
-
-// #[cfg(all(test, not(target_os = "solana")))]
-// mod tests {
-//     use super::{G1_MINUS_ONE, G2_MINUS_ONE};
-//     use ark_bn254::{G1Affine, G2Affine};
-//     use ark_ec::AffineRepr;
-//     use ark_serialize::CanonicalSerialize;
-
-//     #[test]
-//     fn test_g1_minus_one() {
-//         // Compute negation of G1 generator
-//         let g1_gen = G1Affine::generator();
-//         let g1_neg = -g1_gen;
-//         let mut computed_bytes = [0u8; 64];
-//         g1_neg
-//             .serialize_uncompressed(&mut computed_bytes[..])
-//             .expect("Serialization failed");
-
-//         // Convert to big-endian by reversing each 32-byte block (x and y coordinates)
-//         computed_bytes[0..32].reverse();
-//         computed_bytes[32..64].reverse();
-
-//         // Verify against static constant
-//         assert_eq!(
-//             computed_bytes, G1_MINUS_ONE,
-//             "Computed G1_MINUS_ONE does not match static constant"
-//         );
-//     }
-
-//     #[test]
-//     fn test_g2_minus_one() {
-//         // Compute negation of G2 generator
-//         let g2_gen = G2Affine::generator();
-//         let g2_neg = -g2_gen;
-//         let mut computed_bytes = [0u8; 128];
-//         g2_neg
-//             .serialize_uncompressed(&mut computed_bytes[..])
-//             .expect("Serialization failed");
-
-//         // Convert to big-endian by reversing each 64-byte block (x and y coordinates)
-//         computed_bytes[0..64].reverse();
-//         computed_bytes[64..128].reverse();
-
-//         // Verify against static constant
-//         assert_eq!(
-//             computed_bytes, G2_MINUS_ONE,
-//             "Computed G2_MINUS_ONE does not match static constant"
-//         );
-//     }
-// }
-
-// use dashu::integer::UBig;
-// use solana_bn254::compression::prelude::alt_bn128_g1_decompress;
-
-// use crate::consts::{MODULUS, NORMALIZE_MODULUS};
-// use crate::errors::BLSError;
-// use crate::g1::G1Point;
-
-// // TODO: Consider replacing the try-and-increment decompression routine with a standard IETF
-// // hash-to-curve mapping (ExpandMsgXMD with SHA-256, Simplified SWU, RO) for BN254 G1.
-
-// pub fn hash_to_curve<T: AsRef<[u8]>>(message: T) -> Result<G1Point, BLSError> {
-//     (0..255)
-//         .find_map(|n: u8| {
-
-//             let hash = solana_nostd_sha256::hashv(&[
-//                 b"BLS-BN254-RO",
-//                 message.as_ref(),
-//                 &[n]
-//             ]);
-
-//             let hash_ubig = UBig::from_be_bytes(&hash);
-
-//             if hash_ubig >= NORMALIZE_MODULUS {
-//                 return None;
-//             }
-
-//             let modulus_ubig = hash_ubig % &MODULUS;
-
-//             match alt_bn128_g1_decompress(&modulus_ubig.to_be_bytes()) {
-//                 Ok(p) => Some(G1Point(p)),
-//                 Err(_) => None,
-//             }
-//         })
-//         .ok_or(BLSError::HashToCurveError)
-// }
-
-// #[cfg(test)]
-// mod tests {
-//     use super::hash_to_curve;
-//     use crate::g1::{G1CompressedPoint, G1Point};
-
-//     #[test]
-//     fn hash_to_curve_is_deterministic() {
-//         let m = b"hash-determinism";
-//         let h1 = hash_to_curve(m).expect("h1");
-//         let h2 = hash_to_curve(m).expect("h2");
-//         assert_eq!(h1.0, h2.0);
-//     }
-
-//     #[test]
-//     fn hash_to_curve_compress_decompress_roundtrip() {
-//         let m = b"hash-roundtrip";
-//         let h = hash_to_curve(m).expect("hash");
-//         let hc = G1CompressedPoint::try_from(h.clone()).expect("compress");
-//         let rt = G1Point::try_from(&hc).expect("decompress");
-//         assert_eq!(h.0, rt.0);
-//     }
-
-//     #[test]
-//     fn hash_to_curve_changes_with_message() {
-//         let h1 = hash_to_curve(b"m1").expect("h1");
-//         let h2 = hash_to_curve(b"m2").expect("h2");
-//         assert_ne!(h1.0, h2.0);
-//     }
-// }
 
 // ----------------------------------------------------------------------------
 //                       SIGNING
@@ -699,10 +452,10 @@ pub fn alt_solana_map_to_curve_simple(bytes: &[u8; 32]) -> Result<[u8; 64], Stri
 pub fn solana_sign(
     private_key: &[u8; 32],
     message: &[u8],
-    domain: Option<&[u8]>,
+    consensus_count: u64,
 ) -> Result<[u8; 64], String> {
     // Hash message to curve point
-    let hash_point = solana_hash_to_curve(message, domain)?;
+    let hash_point = solana_hash_to_curve(message, consensus_count)?;
 
     // Use helper function for scalar multiplication
     mult_g1(&hash_point, private_key)
@@ -866,20 +619,16 @@ pub fn solana_verify_aggregated_signature(
     aggregated_g2: &[u8; 128],       // Pre-computed aggregated G2 of signers
     aggregated_signature: &[u8; 64], // Aggregated G1 signature
     message: &[u8],
-    domain: Option<&[u8]>,
+    consensus_count: u64,
 ) -> Result<bool, String> {
 
 
     // Hash message to G1 curve point
-    msg!("Hash to curve");
-    sol_log_compute_units();
-    let msg_point = solana_hash_to_curve(message, domain)?;
+    let msg_point = solana_hash_to_curve(message, consensus_count)?;
 
     // Compute alpha for the binding between G1 and G2 representations
     // This creates a cryptographic challenge that ensures the G2 aggregate
     // corresponds to the same operator set as the G1 aggregate
-    msg!("Compute alpha");
-    sol_log_compute_units();
     let alpha = compute_alpha(
         &msg_point,
         aggregated_signature,
@@ -888,31 +637,21 @@ pub fn solana_verify_aggregated_signature(
     )?;
 
     // Scale the generators by alpha
-    msg!("G1 Generator");
-    sol_log_compute_units();
     let g1_generator = get_g1_generator(); // Your G1 generator constant
     let scaled_g1_generator = mult_g1(&g1_generator, &alpha)?;
 
     // Scale the aggregated G1 pubkey by alpha
-    msg!("G1 Aggregate");
-    sol_log_compute_units();
     let scaled_aggregated_g1 = mult_g1(aggregated_g1, &alpha)?;
 
     // Compute the left side of pairing equation: H(m) + G1_gen * alpha
-    msg!("Msg Plus One");
-    sol_log_compute_units();
     let msg_plus_scaled_g1 = add_g1(&msg_point, &scaled_g1_generator)?;
 
 
     // Compute the right side: signature + aggregated_g1 * alpha
-    msg!("Sig Plus One");
-    sol_log_compute_units();
     let sig_plus_scaled_g1 = add_g1(aggregated_signature, &scaled_aggregated_g1)?;
 
     // Prepare pairing input for the equation:
     // e(H(m) + G1_gen * alpha, aggregated_g2) = e(signature + aggregated_g1 * alpha, G2_gen)
-    msg!("Pairing Input");
-    sol_log_compute_units();
     let mut pairing_input = Vec::with_capacity(384);
 
 
@@ -925,14 +664,9 @@ pub fn solana_verify_aggregated_signature(
     pairing_input.extend_from_slice(&get_g2_minus_one()); // Pre-computed negated G2 generator
 
     // Execute pairing check
-    msg!("Pairing");
-    sol_log_compute_units();
     let result =
         alt_bn128_pairing_be(&pairing_input).map_err(|e| format!("Pairing failed: {:?}", e))?;
 
-
-    msg!("Result: {}", result == get_bn128_pairing_success_result());
-    sol_log_compute_units();
     // Check if result equals 1 (successful verification)
     Ok(result == get_bn128_pairing_success_result())
 }
@@ -966,9 +700,9 @@ pub fn solana_verify_single_signature(
     g2: &[u8; 128],       // Pre-computed aggregated G2 of signers
     signature: &[u8; 64], // Aggregated G1 signature
     message: &[u8],
-    domain: Option<&[u8]>,
+    consensus_count: u64,
 ) -> Result<bool, String> {
-    solana_verify_aggregated_signature(g1, g2, signature, message, domain)
+    solana_verify_aggregated_signature(g1, g2, signature, message, consensus_count)
 }
 
 /// Verify a BLS signature using only the G2 public key
@@ -1016,10 +750,10 @@ pub fn solana_verify_signature_with_g2(
     g2: &[u8; 128],
     signature: &[u8; 64],
     message: &[u8],
-    domain: Option<&[u8]>,
+    consensus_count: u64,
 ) -> Result<bool, String> {
     // Hash message to G1 curve point
-    let message_on_g1 = solana_hash_to_curve(message, domain)
+    let message_on_g1 = solana_hash_to_curve(message, consensus_count)
         .map_err(|e| format!("Failed to hash message to curve: {}", e))?;
 
     // For a single pairing check, we should use the optimized approach
@@ -1723,31 +1457,30 @@ mod tests {
         // Test with a simple private key
         let private_key = generate_random_bls_private_key();
         let message = b"test message";
-        let domain = b"BLS_SIG_BN254";
 
         // Generate signature
-        let signature = solana_sign(&private_key, message, Some(domain)).unwrap();
+        let signature = solana_sign(&private_key, message, 0).unwrap();
         assert_eq!(signature.len(), 64);
 
         // Verify signature is deterministic
-        let signature2 = solana_sign(&private_key, message, Some(domain)).unwrap();
+        let signature2 = solana_sign(&private_key, message, 0).unwrap();
         assert_eq!(signature, signature2);
 
         // Different private key produces different signature
         let private_key2 = generate_random_bls_private_key();
-        let signature3 = solana_sign(&private_key2, message, Some(domain)).unwrap();
+        let signature3 = solana_sign(&private_key2, message, 0).unwrap();
         assert_ne!(signature, signature3);
 
         // Different message produces different signature
-        let signature4 = solana_sign(&private_key, b"different message", Some(domain)).unwrap();
+        let signature4 = solana_sign(&private_key, b"different message", 0).unwrap();
         assert_ne!(signature, signature4);
 
         // Different domain produces different signature
-        let signature5 = solana_sign(&private_key, message, Some(b"DIFFERENT_DOMAIN")).unwrap();
+        let signature5 = solana_sign(&private_key, message, 1).unwrap();
         assert_ne!(signature, signature5);
 
         // No domain produces different signature
-        let signature6 = solana_sign(&private_key, message, None).unwrap();
+        let signature6 = solana_sign(&private_key, message, 2).unwrap();
         assert_ne!(signature, signature6);
 
         // Verify the signature is a valid G1 point
@@ -1759,15 +1492,15 @@ mod tests {
 
         // Test edge case: max private key (just below curve order)
         let max_key = generate_random_bls_private_key();
-        let result = solana_sign(&max_key, message, Some(domain));
+        let result = solana_sign(&max_key, message, 0);
         // This should still work as it gets reduced mod order
         assert!(result.is_ok());
 
         // Verify signatures are different for consecutive private keys
         let key1 = generate_random_bls_private_key();
         let key2 = generate_random_bls_private_key();
-        let sig1 = solana_sign(&key1, message, Some(domain)).unwrap();
-        let sig2 = solana_sign(&key2, message, Some(domain)).unwrap();
+        let sig1 = solana_sign(&key1, message, 0).unwrap();
+        let sig2 = solana_sign(&key2, message, 0).unwrap();
         assert_ne!(sig1, sig2);
     }
 
@@ -1800,11 +1533,10 @@ mod tests {
 
         // Message to sign (could be a vote counter value)
         let message = b"vote for round 42";
-        let domain = b"SOLANA_NCN_VOTE_V1";
 
         // Generate signature using private key
         let signature =
-            solana_sign(&private_key, message, Some(domain)).expect("Failed to sign message");
+            solana_sign(&private_key, message, 0).expect("Failed to sign message");
 
         // For a single signer, prepare the data as if it were aggregated
         let signatures = vec![signature];
@@ -1841,7 +1573,7 @@ mod tests {
             &aggregated_g2,         // Pre-computed off-chain
             &aggregated_signature,  // Aggregated G1 signature
             message,                // The message that was signed
-            Some(domain),           // Domain separator
+            0,           // Domain separator
         )
         .expect("Verification failed");
 
@@ -1858,7 +1590,7 @@ mod tests {
             &aggregated_g2,
             &aggregated_signature,
             wrong_message, // Different message
-            Some(domain),
+            0,
         )
         .expect("Verification failed");
 
@@ -1873,7 +1605,7 @@ mod tests {
             &aggregated_g2,
             &aggregated_signature,
             message,
-            Some(b"WRONG_DOMAIN"), // Different domain
+            1, // Different domain
         )
         .expect("Verification failed");
 
@@ -1893,7 +1625,7 @@ mod tests {
             &aggregated_g2,
             &aggregated_signature,
             message,
-            Some(domain),
+            0,
         )
         .expect("Verification failed");
 
@@ -1903,7 +1635,7 @@ mod tests {
         );
 
         // Test 4: Wrong signature should fail
-        let wrong_signature = solana_sign(&wrong_private_key, message, Some(domain))
+        let wrong_signature = solana_sign(&wrong_private_key, message, 0)
             .expect("Failed to sign with wrong key");
 
         let is_valid_wrong_sig = solana_verify_aggregated_signature(
@@ -1911,7 +1643,7 @@ mod tests {
             &aggregated_g2,
             &wrong_signature, // Different signature
             message,
-            Some(domain),
+            0,
         )
         .expect("Verification failed");
 
@@ -1971,11 +1703,11 @@ mod tests {
 
         // Each operator signs independently
         let signature1 =
-            solana_sign(&private_key1, message, Some(domain)).expect("Failed to sign with key 1");
+            solana_sign(&private_key1, message, 0).expect("Failed to sign with key 1");
         let signature2 =
-            solana_sign(&private_key2, message, Some(domain)).expect("Failed to sign with key 2");
+            solana_sign(&private_key2, message, 0).expect("Failed to sign with key 2");
         let signature3 =
-            solana_sign(&private_key3, message, Some(domain)).expect("Failed to sign with key 3");
+            solana_sign(&private_key3, message, 0).expect("Failed to sign with key 3");
 
         // ====================================================================
         // TEST CASE 1: All 3 operators sign
@@ -2009,7 +1741,7 @@ mod tests {
                 &aggregated_g2,
                 &aggregated_signature,
                 message,
-                Some(domain),
+                0,
             )
             .expect("Verification failed");
 
@@ -2051,7 +1783,7 @@ mod tests {
                 &aggregated_g2,
                 &aggregated_signature,
                 message,
-                Some(domain),
+                0,
             )
             .expect("Verification failed");
 
@@ -2101,7 +1833,7 @@ mod tests {
                 &aggregated_g2,
                 &aggregated_signature,
                 message,
-                Some(domain),
+                0,
             )
             .expect("Verification failed");
 
@@ -2138,7 +1870,7 @@ mod tests {
                 &aggregated_g2,
                 &aggregated_signature,
                 message,
-                Some(domain),
+                0,
             )
             .expect("Verification call failed");
 
@@ -2155,7 +1887,7 @@ mod tests {
             let different_message = b"vote for round 43";
 
             // Sign different message
-            let diff_sig1 = solana_sign(&private_key1, different_message, Some(domain))
+            let diff_sig1 = solana_sign(&private_key1, different_message, 0)
                 .expect("Failed to sign different message");
 
             assert_ne!(
@@ -2216,9 +1948,9 @@ mod tests {
         let domain = b"SOLANA_NCN_VOTE_V1";
 
         // Only operators 0 and 2 sign
-        let signature0 = solana_sign(&private_keys[0], message, Some(domain))
+        let signature0 = solana_sign(&private_keys[0], message, 0)
             .expect("Failed to sign with key 0");
-        let signature2 = solana_sign(&private_keys[2], message, Some(domain))
+        let signature2 = solana_sign(&private_keys[2], message, 0)
             .expect("Failed to sign with key 2");
 
         // Prepare vote data for the 2 signers
@@ -2289,7 +2021,7 @@ mod tests {
             &aggregated_g2,         // Pre-computed off-chain from signers
             &aggregated_signature,  // Aggregated G1 signature from signers
             message,                // The message that was signed
-            Some(domain),           // Domain separator
+            0,           // Domain separator
         )
         .expect("Verification failed");
 
@@ -2308,7 +2040,7 @@ mod tests {
             &aggregated_g2,
             &aggregated_signature,
             message,
-            Some(domain),
+            0,
         )
         .expect("Verification call failed");
 
@@ -2321,7 +2053,7 @@ mod tests {
             &aggregated_g2,
             &aggregated_signature,
             message,
-            Some(domain),
+            0,
         )
         .expect("Verification call failed");
 
@@ -2400,23 +2132,23 @@ mod tests {
         let message = b"test message";
         let domain = b"TEST_DOMAIN";
 
-        let signature = solana_sign(&private_key, message, Some(domain)).unwrap();
+        let signature = solana_sign(&private_key, message, 0).unwrap();
 
         let valid =
-            solana_verify_signature_with_g2(&g2_pubkey, &signature, message, Some(domain)).unwrap();
+            solana_verify_signature_with_g2(&g2_pubkey, &signature, message, 0).unwrap();
         assert!(valid, "Valid signature should verify");
 
         // Test 2: Wrong message should fail
         let wrong_message = b"this is a wrong message";
         let valid =
-            solana_verify_signature_with_g2(&g2_pubkey, &signature, wrong_message, Some(domain))
+            solana_verify_signature_with_g2(&g2_pubkey, &signature, wrong_message, 0)
                 .unwrap();
         assert!(!valid, "Wrong message should fail verification");
 
         // Test 3: Wrong domain should fail
         let wrong_domain = b"WRONG_DOMAIN";
         let valid =
-            solana_verify_signature_with_g2(&g2_pubkey, &signature, message, Some(wrong_domain))
+            solana_verify_signature_with_g2(&g2_pubkey, &signature, message, 1)
                 .unwrap();
         assert!(!valid, "Wrong domain should fail verification");
 
@@ -2424,21 +2156,21 @@ mod tests {
         let wrong_private_key = generate_random_bls_private_key();
         let wrong_g2_pubkey = offchain_g2_from_private_key(&wrong_private_key).unwrap();
         let valid =
-            solana_verify_signature_with_g2(&wrong_g2_pubkey, &signature, message, Some(domain))
+            solana_verify_signature_with_g2(&wrong_g2_pubkey, &signature, message, 0)
                 .unwrap();
         assert!(!valid, "Wrong G2 key should fail verification");
 
         // Test 5: Wrong signature should fail
-        let wrong_signature = solana_sign(&wrong_private_key, message, Some(domain)).unwrap();
+        let wrong_signature = solana_sign(&wrong_private_key, message, 0).unwrap();
         let valid =
-            solana_verify_signature_with_g2(&g2_pubkey, &wrong_signature, message, Some(domain))
+            solana_verify_signature_with_g2(&g2_pubkey, &wrong_signature, message, 0)
                 .unwrap();
         assert!(!valid, "Wrong signature should fail verification");
 
         // Test 6: No domain
-        let signature_no_domain = solana_sign(&private_key, message, None).unwrap();
+        let signature_no_domain = solana_sign(&private_key, message, 2).unwrap();
         let valid =
-            solana_verify_signature_with_g2(&g2_pubkey, &signature_no_domain, message, None)
+            solana_verify_signature_with_g2(&g2_pubkey, &signature_no_domain, message, 2)
                 .unwrap();
         assert!(valid, "Signature without domain should verify");
 
@@ -2446,14 +2178,14 @@ mod tests {
         let private_key2 = generate_random_bls_private_key();
         let g2_pubkey2 = offchain_g2_from_private_key(&private_key2).unwrap();
 
-        let sig1 = solana_sign(&private_key, message, Some(domain)).unwrap();
-        let sig2 = solana_sign(&private_key2, message, Some(domain)).unwrap();
+        let sig1 = solana_sign(&private_key, message, 0).unwrap();
+        let sig2 = solana_sign(&private_key2, message, 0).unwrap();
 
         let aggregated_sig = aggregate_signatures(&[sig1, sig2]).unwrap();
         let aggregated_g2 = offchain_aggregate_g2_pubkeys(&[g2_pubkey, g2_pubkey2]).unwrap();
 
         let valid =
-            solana_verify_signature_with_g2(&aggregated_g2, &aggregated_sig, message, Some(domain))
+            solana_verify_signature_with_g2(&aggregated_g2, &aggregated_sig, message, 0)
                 .unwrap();
         assert!(valid, "Aggregated signature should verify");
     }
@@ -2466,17 +2198,17 @@ mod tests {
         let empty_message = b"";
         let domain = b"TEST";
 
-        let signature = solana_sign(&private_key, empty_message, Some(domain)).unwrap();
+        let signature = solana_sign(&private_key, empty_message, 0).unwrap();
         let valid =
-            solana_verify_signature_with_g2(&g2_pubkey, &signature, empty_message, Some(domain))
+            solana_verify_signature_with_g2(&g2_pubkey, &signature, empty_message, 0)
                 .unwrap();
         assert!(valid, "Empty message should verify");
 
         // Test with large message
         let large_message = vec![0xAB; 1000];
-        let signature = solana_sign(&private_key, &large_message, Some(domain)).unwrap();
+        let signature = solana_sign(&private_key, &large_message, 0).unwrap();
         let valid =
-            solana_verify_signature_with_g2(&g2_pubkey, &signature, &large_message, Some(domain))
+            solana_verify_signature_with_g2(&g2_pubkey, &signature, &large_message, 0)
                 .unwrap();
         assert!(valid, "Large message should verify");
     }
@@ -2490,11 +2222,11 @@ mod tests {
         let message = b"consistency test";
         let domain = b"DOMAIN";
 
-        let signature = solana_sign(&private_key, message, Some(domain)).unwrap();
+        let signature = solana_sign(&private_key, message, 0).unwrap();
 
         // Verify with G2 only
         let valid_g2_only =
-            solana_verify_signature_with_g2(&g2_pubkey, &signature, message, Some(domain)).unwrap();
+            solana_verify_signature_with_g2(&g2_pubkey, &signature, message, 0).unwrap();
 
         // Verify with full method
         let valid_full = solana_verify_single_signature(
@@ -2502,7 +2234,7 @@ mod tests {
             &g2_pubkey,
             &signature,
             message,
-            Some(domain),
+            0,
         )
         .unwrap();
 

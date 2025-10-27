@@ -3,8 +3,9 @@ use crate::{errors::BlsNcnProgramError, pod::PodU64, utils::JitoIxData};
 #[repr(u64)]
 pub enum JitoBlsNCNInstructions {
     InitializeConfig = 0x01,
-    InitializeRollingSnapshot = 0x02,
-    InitializeBlsOperator = 0x03,
+    InitializeConsensus = 0x02,
+    InitializeRollingSnapshot = 0x03,
+    InitializeBlsOperator = 0x04,
 
     RegisterBlsOperator = 0x10,
     RemoveBlsOperator = 0x11,
@@ -18,8 +19,9 @@ impl TryFrom<u64> for JitoBlsNCNInstructions {
     fn try_from(value: u64) -> Result<Self, Self::Error> {
         match value {
             0x01 => Ok(JitoBlsNCNInstructions::InitializeConfig),
-            0x02 => Ok(JitoBlsNCNInstructions::InitializeRollingSnapshot),
-            0x03 => Ok(JitoBlsNCNInstructions::InitializeBlsOperator),
+            0x02 => Ok(JitoBlsNCNInstructions::InitializeConsensus),
+            0x03 => Ok(JitoBlsNCNInstructions::InitializeRollingSnapshot),
+            0x04 => Ok(JitoBlsNCNInstructions::InitializeBlsOperator),
             0x10 => Ok(JitoBlsNCNInstructions::RegisterBlsOperator),
             0x11 => Ok(JitoBlsNCNInstructions::RemoveBlsOperator),
             0x20 => Ok(JitoBlsNCNInstructions::Vote),
@@ -58,6 +60,38 @@ impl InitializeConfigIxData {
         }
     }
 }
+
+// -------------------- INITIALIZE CONSENSUS ---------------
+
+/// [config, ncn, admin, payer, system_program]
+#[repr(C, packed)]
+pub struct InitializeConsensusIxData {
+    pub discriminator: PodU64,
+    pub bump: u8,
+}
+
+/// # Safety
+/// Caller must ensure everything is 1 byte aligned
+unsafe impl JitoIxData for InitializeConsensusIxData {
+    const DISCRIMINATOR: u64 = JitoBlsNCNInstructions::InitializeConsensus as u64;
+    const LEN: usize = size_of::<Self>();
+
+    /// # Safety
+    /// Caller must ensure everything is 1 byte aligned
+    unsafe fn to_bytes(&self) -> &[u8] {
+        unsafe { crate::utils::ix_data_to_bytes::<Self>(self) }
+    }
+}
+
+impl InitializeConsensusIxData {
+    pub fn new(bump: u8) -> Self {
+        Self {
+            discriminator: PodU64::from(Self::DISCRIMINATOR),
+            bump,
+        }
+    }
+}
+
 
 // -------------------- INITIALIZE ROLLING SNAPSHOT ---------------
 
@@ -160,6 +194,7 @@ pub struct VoteIxData {
     pub aggregated_g2_signed: [u8; 128],
     pub operators_bitmap_signed: [u8; 32],
     pub message: [u8; 32],
+    pub consensus_count: PodU64,
 }
 
 /// # Safety
@@ -174,13 +209,15 @@ unsafe impl JitoIxData for VoteIxData {
 }
 
 impl VoteIxData {
-    pub fn new(aggregated_g1_signature: [u8; 64], aggregated_g2_signed: [u8; 128], operators_bitmap_signed: [u8; 32], message: [u8; 32]) -> Self {
+    pub fn new(aggregated_g1_signature: [u8; 64], aggregated_g2_signed: [u8; 128], operators_bitmap_signed: [u8; 32], raw_message: [u8; 32], consensus_count: u64) -> Self {
+
         Self {
             discriminator: PodU64::from(Self::DISCRIMINATOR),
             aggregated_g1_signature,
             aggregated_g2_signed,
             operators_bitmap_signed,
-            message,
+            message: raw_message,
+            consensus_count: PodU64::from(consensus_count),
         }
     }
 }

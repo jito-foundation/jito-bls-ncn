@@ -43,18 +43,6 @@ pub unsafe trait JitoIxData {
     unsafe fn to_bytes(&self) -> &[u8];
 }
 
-// pub trait JitoDiscriminator {
-//     const DISCRIMINATOR: u64;
-// }
-
-// pub trait JitoDataLen {
-//     const LEN: usize;
-// }
-
-// pub trait JitoInitialized {
-//     fn is_initialized(&self) -> bool;
-// }
-
 /// # Safety
 /// Caller must ensure everything is 1 byte aligned
 #[inline(always)]
@@ -73,6 +61,7 @@ pub unsafe fn load_account<T: JitoAccount>(bytes: &[u8]) -> Result<&T, ProgramEr
 #[inline(always)]
 pub unsafe fn load_account_unchecked<T: JitoAccount>(bytes: &[u8]) -> Result<&T, ProgramError> {
     if bytes.len() != T::LEN {
+        msg!("{} {}", bytes.len(), T::LEN);
         return Err(ProgramError::InvalidAccountData);
     }
     Ok(&*(bytes.as_ptr() as *const T))

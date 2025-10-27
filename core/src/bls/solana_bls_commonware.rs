@@ -36,13 +36,38 @@ const SIGNATURE_LENGTH: usize = G1_LENGTH;
 const G2_LENGTH: usize = 128;
 const PUBLIC_KEY_LENGTH: usize = G2_LENGTH;
 
+impl SolanaBN254Keypair {
+    pub fn solana_sign(&self, message: &[u8], consensus_count: u64) -> SolanaBN254Signature {
+        let consensus_bytes = consensus_count.to_le_bytes();
+        let namespace = Some(consensus_bytes.as_slice());
+        self.sign(namespace, message)
+    }
+
+    pub fn solana_verify(&self, message: &[u8], signature: &SolanaBN254Signature, consensus_count: u64) -> bool {
+        let consensus_bytes = consensus_count.to_le_bytes();
+        let namespace = Some(consensus_bytes.as_slice());
+        self.verify(namespace, message, signature)
+    }
+}
+
 impl Signer for SolanaBN254Keypair {
     type Signature = SolanaBN254Signature;
     type PublicKey = SolanaBN254G2;
 
+    /// Namespace actually needs to be the consensus count in Option<Byte>format
     fn sign(&self, namespace: Option<&[u8]>, message: &[u8]) -> Self::Signature {
+
+        if namespace.is_none() {
+            panic!("Consensus count is required ( Namespace, with consensus count (u64) as be bytes) - use SolanaBN254Keypair::solana_sign");
+        }
+
+        let consensus_bytes = namespace.expect("Could not unwrap consensus bytes");
+        let consensus_count = u64::from_le_bytes(
+            consensus_bytes[..8].try_into().expect("slice with incorrect length")
+        );
+
         let raw_signature =
-            solana_sign(&self.private_key, message, namespace).expect("Could not sign");
+            solana_sign(&self.private_key, message, consensus_count).expect("Could not sign");
         SolanaBN254Signature::new(&raw_signature).expect("Could not create signature")
     }
 
@@ -62,7 +87,17 @@ impl Verifier for SolanaBN254Keypair {
     ) -> bool {
         let g1 = &self.public_key.g1.raw;
         let g2 = &self.public_key.g2.raw;
-        solana_verify_single_signature(g1, g2, &signature.raw, message, namespace)
+
+        if namespace.is_none() {
+            panic!("Consensus count is required ( Namespace, with consensus count (u64) as be bytes) - use SolanaBN254Keypair::solana_verify");
+        }
+
+        let consensus_bytes = namespace.expect("Could not unwrap consensus bytes");
+        let consensus_count = u64::from_le_bytes(
+            consensus_bytes[..8].try_into().expect("slice with incorrect length")
+        );
+
+        solana_verify_single_signature(g1, g2, &signature.raw, message, consensus_count)
             .expect("Could not verify signature")
     }
 }
@@ -171,6 +206,14 @@ impl Debug for SolanaBN254Keypair {
 impl Display for SolanaBN254Keypair {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", hex(&self.private_key))
+    }
+}
+
+impl SolanaBN254G2 {
+    pub fn solana_verify_g2(&self, message: &[u8], signature: &SolanaBN254Signature, consensus_count: u64) -> bool {
+        let consensus_bytes = consensus_count.to_le_bytes();
+        let namespace = Some(consensus_bytes.as_slice());
+        self.verify(namespace, message, signature)
     }
 }
 
@@ -294,7 +337,17 @@ impl Verifier for SolanaBN254G2 {
         message: &[u8],
         signature: &Self::Signature,
     ) -> bool {
-        solana_verify_signature_with_g2(&self.raw, &signature.raw, message, namespace)
+
+        if namespace.is_none() {
+            panic!("Consensus count is required ( Namespace, with consensus count (u64) as be bytes) - use SolanaBN254G2::solana_verify_g2");
+        }
+
+        let consensus_bytes = namespace.expect("Could not unwrap consensus bytes");
+        let consensus_count = u64::from_le_bytes(
+            consensus_bytes[..8].try_into().expect("slice with incorrect length")
+        );
+
+        solana_verify_signature_with_g2(&self.raw, &signature.raw, message, consensus_count)
             .expect("Could not verify")
     }
 }

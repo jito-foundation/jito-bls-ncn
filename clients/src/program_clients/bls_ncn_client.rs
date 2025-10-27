@@ -8,7 +8,7 @@ use jito_bls_ncn_core::{
     utils::{get_realloc_calls, load_account, JitoAccount},
 };
 use jito_bls_ncn_sdk::bls_ncn_sdk::{
-    bls_operator_address, config_address, consensus_address, initialize_bls_operator_ix, initialize_config_ix, initialize_rolling_snapshot_ix, register_bls_operator_ix, rolling_snapshot_address, vote_ix
+    bls_operator_address, config_address, consensus_address, initialize_bls_operator_ix, initialize_config_ix, initialize_consensus_ix, initialize_rolling_snapshot_ix, register_bls_operator_ix, rolling_snapshot_address, vote_ix
 };
 use solana_compute_budget_interface::ComputeBudgetInstruction;
 use solana_pubkey::Pubkey;
@@ -68,6 +68,20 @@ pub async fn initialize_config<T: JitoClient>(jito_client: &T, ncn: &Pubkey) -> 
     let blockhash = jito_client.get_recent_blockhash().await?;
     let tx = Transaction::new_signed_with_payer(
         &[initialize_config_ix(ncn, &payer.pubkey(), &payer.pubkey())],
+        Some(&payer.pubkey()),
+        &[&payer],
+        blockhash,
+    );
+
+    jito_client.send_and_confirm_transaction(tx, None).await?;
+    Ok(())
+}
+
+pub async fn initialize_consensus<T: JitoClient>(jito_client: &T, ncn: &Pubkey) -> Result<()> {
+    let payer = jito_client.keypair().insecure_clone();
+    let blockhash = jito_client.get_recent_blockhash().await?;
+    let tx = Transaction::new_signed_with_payer(
+        &[initialize_consensus_ix(ncn, &payer.pubkey())],
         Some(&payer.pubkey()),
         &[&payer],
         blockhash,
@@ -162,13 +176,15 @@ pub async fn vote<T: JitoClient>(
     aggregated_g1_signature: &SolanaBN254G1,
     aggregated_g2_signed: &SolanaBN254G2,
     operators_bitmap_signed: &[u8; 32],
-    message: &[u8; 32]) -> Result<()> {
+    raw_message: &[u8; 32],
+    consensus_count: u64,
+) -> Result<()> {
     let payer = jito_client.keypair().insecure_clone();
     let blockhash = jito_client.get_recent_blockhash().await?;
     let tx = Transaction::new_signed_with_payer(
         &[
             ComputeBudgetInstruction::set_compute_unit_limit(1_400_000),
-            vote_ix(ncn, aggregated_g1_signature, aggregated_g2_signed, operators_bitmap_signed, message)
+            vote_ix(ncn, aggregated_g1_signature, aggregated_g2_signed, operators_bitmap_signed, raw_message, consensus_count)
         ],
         Some(&payer.pubkey()),
         &[&payer],

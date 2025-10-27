@@ -33,7 +33,7 @@ pub struct RollingSnapshot {
 impl JitoAccount for RollingSnapshot {
     const DISCRIMINATOR: u64 = Discriminators::RollingSnapshot as u64;
     const LEN: usize = std::mem::size_of::<Self>();
-    const SEED: &'static [u8] = b"consensus";
+    const SEED: &'static [u8] = b"rolling_snapshot";
     type SeedInputs = Pubkey;
 
     /// ncn
