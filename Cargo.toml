@@ -62,5 +62,6 @@ spl-associated-token-account-interface = "2.0.0"
 # jito-bytemuck = { package = "jito-bytemuck", git = "https://github.com/jito-foundation/restaking", branch = "master" }
 # bytemuck = { version = "1.16.3", features = ["derive", "min_const_generics"] }
 spl-token-interface = "2.0.0"
+tokio = { version = "1.48.0", features = ["full"] }
 
 # cargo update --precise 1.6.0 -p base64ct@1.8.0

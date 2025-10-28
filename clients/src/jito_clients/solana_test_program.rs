@@ -10,7 +10,7 @@ use solana_signature::Signature;
 use solana_system_transaction::transfer;
 use solana_transaction::{Hash, Transaction};
 
-use crate::jito_clients::{JitoClient, JitoClientType};
+use crate::jito_clients::{JitoClientTrait, JitoClientType};
 
 // --------------------------- JITO TEST PROGRAM Client -------------------------------
 pub struct JitoSolanaTestProgramClient {
@@ -27,7 +27,7 @@ impl JitoSolanaTestProgramClient {
     }
 }
 
-impl JitoClient for JitoSolanaTestProgramClient {
+impl JitoClientTrait for JitoSolanaTestProgramClient {
     fn get_client_type(&self) -> JitoClientType {
         self.client_type.clone()
     }

@@ -13,7 +13,7 @@ use solana_pubkey::Pubkey;
 use solana_signature::Signature;
 use solana_transaction::{Hash, Transaction};
 
-use crate::jito_clients::{JitoClient, JitoClientType};
+use crate::jito_clients::{JitoClientTrait, JitoClientType};
 
 // --------------------------- JITO SurfPool Client -------------------------------
 pub struct JitoSurfPoolClient {
@@ -46,7 +46,7 @@ impl JitoSurfPoolClient {
     }
 }
 
-impl JitoClient for JitoSurfPoolClient {
+impl JitoClientTrait for JitoSurfPoolClient {
     fn get_client_type(&self) -> JitoClientType {
         self.client_type.clone()
     }

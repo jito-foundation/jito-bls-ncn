@@ -18,7 +18,7 @@ use solana_transaction::Transaction;
 use spl_associated_token_account_interface::address::get_associated_token_address;
 
 use crate::{
-    jito_clients::JitoClient,
+    jito_clients::JitoClientTrait,
     program_clients::solana_client::{create_ata, create_mint, mint_spl_to},
 };
 
@@ -38,20 +38,20 @@ impl Clone for VaultRoot {
     }
 }
 
-pub async fn get_config<T: JitoClient>(jito_client: &T) -> Result<Config> {
+pub async fn get_config<T: JitoClientTrait>(jito_client: &T) -> Result<Config> {
     let (address, _, _) = config_address();
     let account_raw = jito_client.get_account(&address).await?;
     let account = unsafe { load_account::<Config>(&account_raw.data)? };
     Ok(*account)
 }
 
-pub async fn get_vault<T: JitoClient>(jito_client: &T, vault: &Pubkey) -> Result<Vault> {
+pub async fn get_vault<T: JitoClientTrait>(jito_client: &T, vault: &Pubkey) -> Result<Vault> {
     let account_raw = jito_client.get_account(vault).await?;
     let account = unsafe { load_account::<Vault>(&account_raw.data)? };
     Ok(*account)
 }
 
-pub async fn test_configure_depositor<T: JitoClient>(
+pub async fn test_configure_depositor<T: JitoClientTrait>(
     jito_client: &mut T,
     vault_root: &VaultRoot,
     depositor: &Pubkey,
@@ -73,7 +73,7 @@ pub async fn test_configure_depositor<T: JitoClient>(
     Ok(())
 }
 
-pub async fn get_vault_is_update_needed<T: JitoClient>(
+pub async fn get_vault_is_update_needed<T: JitoClientTrait>(
     jito_client: &mut T,
     vault: &Pubkey,
     slot: u64,
@@ -86,7 +86,7 @@ pub async fn get_vault_is_update_needed<T: JitoClient>(
         .map_err(|e| anyhow!("Could not get is update needed: {}", e))
 }
 
-pub async fn test_initialize_config<T: JitoClient>(jito_client: &mut T) -> Result<()> {
+pub async fn test_initialize_config<T: JitoClientTrait>(jito_client: &mut T) -> Result<()> {
     let admin = jito_client.keypair().insecure_clone();
     let restaking_program = jito_bls_ncn_sdk::restaking_sdk::id();
     let (config, _, _) = config_address();
@@ -103,7 +103,7 @@ pub async fn test_initialize_config<T: JitoClient>(jito_client: &mut T) -> Resul
     Ok(())
 }
 
-pub async fn initialize_config<T: JitoClient>(
+pub async fn initialize_config<T: JitoClientTrait>(
     jito_client: &mut T,
     config: &Pubkey,
     config_admin: &Keypair,
@@ -129,7 +129,7 @@ pub async fn initialize_config<T: JitoClient>(
     Ok(())
 }
 
-pub async fn test_initialize_vault<T: JitoClient>(jito_client: &mut T) -> Result<VaultRoot> {
+pub async fn test_initialize_vault<T: JitoClientTrait>(jito_client: &mut T) -> Result<VaultRoot> {
     let admin = jito_client.keypair().insecure_clone();
     let base = Keypair::new();
     let vrt_mint = Keypair::new();
@@ -180,7 +180,7 @@ pub async fn test_initialize_vault<T: JitoClient>(jito_client: &mut T) -> Result
 }
 
 #[allow(clippy::too_many_arguments)]
-pub async fn initialize_vault<T: JitoClient>(
+pub async fn initialize_vault<T: JitoClientTrait>(
     jito_client: &mut T,
     config: &Pubkey,
     vault: &Pubkey,
@@ -246,7 +246,7 @@ pub async fn initialize_vault<T: JitoClient>(
     Ok(())
 }
 
-pub async fn test_initialize_vault_ncn_ticket<T: JitoClient>(
+pub async fn test_initialize_vault_ncn_ticket<T: JitoClientTrait>(
     jito_client: &mut T,
     vault_root: &VaultRoot,
     ncn: &Pubkey,
@@ -270,7 +270,7 @@ pub async fn test_initialize_vault_ncn_ticket<T: JitoClient>(
     Ok(())
 }
 
-pub async fn initialize_vault_ncn_ticket<T: JitoClient>(
+pub async fn initialize_vault_ncn_ticket<T: JitoClientTrait>(
     jito_client: &mut T,
     config: &Pubkey,
     vault: &Pubkey,
@@ -299,7 +299,7 @@ pub async fn initialize_vault_ncn_ticket<T: JitoClient>(
     Ok(())
 }
 
-pub async fn test_warmup_vault_ncn_ticket<T: JitoClient>(
+pub async fn test_warmup_vault_ncn_ticket<T: JitoClientTrait>(
     jito_client: &mut T,
     vault_root: &VaultRoot,
     ncn: &Pubkey,
@@ -320,7 +320,7 @@ pub async fn test_warmup_vault_ncn_ticket<T: JitoClient>(
     Ok(())
 }
 
-pub async fn warmup_vault_ncn_ticket<T: JitoClient>(
+pub async fn warmup_vault_ncn_ticket<T: JitoClientTrait>(
     jito_client: &mut T,
     config: &Pubkey,
     vault: &Pubkey,
@@ -346,7 +346,7 @@ pub async fn warmup_vault_ncn_ticket<T: JitoClient>(
     Ok(())
 }
 
-pub async fn test_initialize_vault_operator_delegation<T: JitoClient>(
+pub async fn test_initialize_vault_operator_delegation<T: JitoClientTrait>(
     jito_client: &mut T,
     vault_root: &VaultRoot,
     operator: &Pubkey,
@@ -374,7 +374,7 @@ pub async fn test_initialize_vault_operator_delegation<T: JitoClient>(
     Ok(())
 }
 
-pub async fn initialize_vault_operator_delegation<T: JitoClient>(
+pub async fn initialize_vault_operator_delegation<T: JitoClientTrait>(
     jito_client: &mut T,
     config: &Pubkey,
     vault: &Pubkey,
@@ -403,7 +403,7 @@ pub async fn initialize_vault_operator_delegation<T: JitoClient>(
     Ok(())
 }
 
-pub async fn test_add_delegation<T: JitoClient>(
+pub async fn test_add_delegation<T: JitoClientTrait>(
     jito_client: &mut T,
     vault_root: &VaultRoot,
     operator: &Pubkey,
@@ -427,7 +427,7 @@ pub async fn test_add_delegation<T: JitoClient>(
     Ok(())
 }
 
-pub async fn add_delegation<T: JitoClient>(
+pub async fn add_delegation<T: JitoClientTrait>(
     jito_client: &mut T,
     config: &Pubkey,
     vault: &Pubkey,
@@ -455,7 +455,7 @@ pub async fn add_delegation<T: JitoClient>(
     Ok(())
 }
 
-pub async fn test_mint_to<T: JitoClient>(
+pub async fn test_mint_to<T: JitoClientTrait>(
     jito_client: &mut T,
     vault_root: &VaultRoot,
     depositor: &Keypair,
@@ -490,7 +490,7 @@ pub async fn test_mint_to<T: JitoClient>(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub async fn mint_to<T: JitoClient>(
+pub async fn mint_to<T: JitoClientTrait>(
     jito_client: &mut T,
     vault: &Pubkey,
     vrt_mint: &Pubkey,
@@ -528,7 +528,7 @@ pub async fn mint_to<T: JitoClient>(
     Ok(())
 }
 
-pub async fn full_vault_update<T: JitoClient>(
+pub async fn full_vault_update<T: JitoClientTrait>(
     jito_client: &mut T,
     vault_pubkey: &Pubkey,
     operators: &[Pubkey],
@@ -578,7 +578,7 @@ pub async fn full_vault_update<T: JitoClient>(
     Ok(())
 }
 
-pub async fn do_crank_vault_update_state_tracker<T: JitoClient>(
+pub async fn do_crank_vault_update_state_tracker<T: JitoClientTrait>(
     jito_client: &mut T,
     vault: &Pubkey,
     operator: &Pubkey,
@@ -601,7 +601,7 @@ pub async fn do_crank_vault_update_state_tracker<T: JitoClient>(
     .await
 }
 
-pub async fn crank_vault_update_state_tracker<T: JitoClient>(
+pub async fn crank_vault_update_state_tracker<T: JitoClientTrait>(
     jito_client: &mut T,
     vault: &Pubkey,
     operator: &Pubkey,
@@ -628,7 +628,7 @@ pub async fn crank_vault_update_state_tracker<T: JitoClient>(
     Ok(())
 }
 
-pub async fn update_vault_balance<T: JitoClient>(
+pub async fn update_vault_balance<T: JitoClientTrait>(
     jito_client: &mut T,
     vault_pubkey: &Pubkey,
 ) -> Result<()> {
@@ -655,7 +655,7 @@ pub async fn update_vault_balance<T: JitoClient>(
     Ok(())
 }
 
-pub async fn initialize_vault_update_state_tracker<T: JitoClient>(
+pub async fn initialize_vault_update_state_tracker<T: JitoClientTrait>(
     jito_client: &mut T,
     vault_pubkey: &Pubkey,
     vault_update_state_tracker: &Pubkey,
@@ -680,7 +680,7 @@ pub async fn initialize_vault_update_state_tracker<T: JitoClient>(
     Ok(())
 }
 
-pub async fn close_vault_update_state_tracker<T: JitoClient>(
+pub async fn close_vault_update_state_tracker<T: JitoClientTrait>(
     jito_client: &mut T,
     vault_pubkey: &Pubkey,
     vault_update_state_tracker: &Pubkey,

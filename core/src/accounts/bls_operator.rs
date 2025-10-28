@@ -15,7 +15,7 @@ use crate::{
 
 /// Individual operator account that stores BLS keys for a specific operator in a specific NCN
 #[derive(Debug, Clone, Copy)]
-#[repr(C)]
+#[repr(C, packed)]
 pub struct BlsOperator {
     pub discriminator: PodU64,
     /// The bump seed for the PDA

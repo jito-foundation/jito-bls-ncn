@@ -13,6 +13,14 @@ pub enum JitoBlsNCNInstructions {
     Vote = 0x20,
 }
 
+const _: () = assert!(JitoBlsNCNInstructions::InitializeConfig as u8 != 0);
+const _: () = assert!(JitoBlsNCNInstructions::InitializeConsensus as u8 != 0);
+const _: () = assert!(JitoBlsNCNInstructions::InitializeRollingSnapshot as u8 != 0);
+const _: () = assert!(JitoBlsNCNInstructions::InitializeBlsOperator as u8 != 0);
+const _: () = assert!(JitoBlsNCNInstructions::RegisterBlsOperator as u8 != 0);
+const _: () = assert!(JitoBlsNCNInstructions::RemoveBlsOperator as u8 != 0);
+const _: () = assert!(JitoBlsNCNInstructions::Vote as u8 != 0);
+
 impl TryFrom<u64> for JitoBlsNCNInstructions {
     type Error = BlsNcnProgramError;
 

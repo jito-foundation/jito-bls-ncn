@@ -17,7 +17,7 @@ use solana_pubkey::Pubkey;
 use solana_signer::Signer;
 use solana_transaction::Transaction;
 
-use crate::{jito_clients::JitoClient, program_clients::meta_restaking_client::TestNcn};
+use crate::{jito_clients::JitoClientTrait, program_clients::meta_restaking_client::TestNcn};
 
 pub struct BlsNcnRoot {
     pub test_ncn: TestNcn,
@@ -31,7 +31,7 @@ pub struct BlsNcnSignatureRoot {
     pub message: Vec<u8>,
 }
 
-pub async fn get_bls_operator<T: JitoClient>(
+pub async fn get_bls_operator<T: JitoClientTrait>(
     jito_client: &T,
     operator: &Pubkey,
 ) -> Result<BlsOperator> {
@@ -41,21 +41,21 @@ pub async fn get_bls_operator<T: JitoClient>(
     Ok(*account)
 }
 
-pub async fn get_config<T: JitoClient>(jito_client: &T, ncn: &Pubkey) -> Result<Config> {
+pub async fn get_config<T: JitoClientTrait>(jito_client: &T, ncn: &Pubkey) -> Result<Config> {
     let (address, _, _) = config_address(ncn);
     let account_raw = jito_client.get_account(&address).await?;
     let account = unsafe { load_account::<Config>(&account_raw.data)? };
     Ok(*account)
 }
 
-pub async fn get_consensus<T: JitoClient>(jito_client: &T, ncn: &Pubkey) -> Result<Consensus> {
+pub async fn get_consensus<T: JitoClientTrait>(jito_client: &T, ncn: &Pubkey) -> Result<Consensus> {
     let (address, _, _) = consensus_address(ncn);
     let account_raw = jito_client.get_account(&address).await?;
     let account = unsafe { load_account::<Consensus>(&account_raw.data)? };
     Ok(*account)
 }
 
-pub async fn get_rolling_snapshot<T: JitoClient>(
+pub async fn get_rolling_snapshot<T: JitoClientTrait>(
     jito_client: &T,
     ncn: &Pubkey,
 ) -> Result<RollingSnapshot> {
@@ -65,7 +65,7 @@ pub async fn get_rolling_snapshot<T: JitoClient>(
     Ok(*account)
 }
 
-pub async fn initialize_config<T: JitoClient>(jito_client: &T, ncn: &Pubkey) -> Result<()> {
+pub async fn initialize_config<T: JitoClientTrait>(jito_client: &T, ncn: &Pubkey) -> Result<()> {
     let payer = jito_client.keypair().insecure_clone();
     let blockhash = jito_client.get_recent_blockhash().await?;
     let tx = Transaction::new_signed_with_payer(
@@ -79,7 +79,7 @@ pub async fn initialize_config<T: JitoClient>(jito_client: &T, ncn: &Pubkey) -> 
     Ok(())
 }
 
-pub async fn initialize_consensus<T: JitoClient>(jito_client: &T, ncn: &Pubkey) -> Result<()> {
+pub async fn initialize_consensus<T: JitoClientTrait>(jito_client: &T, ncn: &Pubkey) -> Result<()> {
     let payer = jito_client.keypair().insecure_clone();
     let blockhash = jito_client.get_recent_blockhash().await?;
     let tx = Transaction::new_signed_with_payer(
@@ -93,7 +93,7 @@ pub async fn initialize_consensus<T: JitoClient>(jito_client: &T, ncn: &Pubkey) 
     Ok(())
 }
 
-pub async fn initialize_rolling_snapshot<T: JitoClient>(
+pub async fn initialize_rolling_snapshot<T: JitoClientTrait>(
     jito_client: &mut T,
     ncn: &Pubkey,
 ) -> Result<()> {
@@ -121,7 +121,7 @@ pub async fn initialize_rolling_snapshot<T: JitoClient>(
     Ok(())
 }
 
-pub async fn initialize_bls_operator<T: JitoClient>(
+pub async fn initialize_bls_operator<T: JitoClientTrait>(
     jito_client: &T,
     operator: &Pubkey,
     bls_keypair: &SolanaBN254Keypair,
@@ -145,7 +145,7 @@ pub async fn initialize_bls_operator<T: JitoClient>(
     Ok(())
 }
 
-pub async fn register_bls_operator<T: JitoClient>(
+pub async fn register_bls_operator<T: JitoClientTrait>(
     jito_client: &T,
     ncn: &Pubkey,
     operator: &Pubkey,
@@ -167,7 +167,7 @@ pub async fn register_bls_operator<T: JitoClient>(
 // aggregated_g2_signed: SolanaBN254G2,
 // operators_bitmap_signed: [u8; 32],
 // message: [u8; 32],
-pub async fn vote<T: JitoClient>(
+pub async fn vote<T: JitoClientTrait>(
     jito_client: &mut T,
     ncn: &Pubkey,
     aggregated_g1_signature: &SolanaBN254G1,

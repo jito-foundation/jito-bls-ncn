@@ -2,7 +2,7 @@
 mod tests {
     use anyhow::{anyhow, Result};
     use jito_bls_ncn_clients::{
-        jito_clients::JitoClient,
+        jito_clients::JitoClientTrait,
         program_clients::{
             bls_ncn_client::{
                 get_bls_operator, initialize_bls_operator, initialize_config,

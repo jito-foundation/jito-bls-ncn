@@ -9,7 +9,7 @@ use solana_pubkey::Pubkey;
 use solana_signature::Signature;
 use solana_transaction::{Hash, Transaction};
 
-use crate::jito_clients::{JitoClient, JitoClientType};
+use crate::jito_clients::{JitoClientTrait, JitoClientType};
 
 // --------------------------- JITO RPC Client -------------------------------
 pub struct JitoRpcClient {
@@ -36,7 +36,7 @@ impl JitoRpcClient {
     }
 }
 
-impl JitoClient for JitoRpcClient {
+impl JitoClientTrait for JitoRpcClient {
     fn get_client_type(&self) -> JitoClientType {
         self.client_type.clone()
     }

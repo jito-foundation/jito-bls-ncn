@@ -2,7 +2,7 @@
 mod tests {
     use anyhow::{anyhow, Result};
     use jito_bls_ncn_clients::{
-        jito_clients::JitoClient,
+        jito_clients::JitoClientTrait,
         program_clients::{
             bls_ncn_client::{
                 get_consensus, initialize_bls_operator, initialize_config, initialize_consensus,
@@ -22,7 +22,7 @@ mod tests {
     use crate::fixtures::fixture::create_test_client;
 
     /// Setup test environment with operators and return all necessary data for voting
-    async fn setup_vote_test<T: JitoClient>(
+    async fn setup_vote_test<T: JitoClientTrait>(
         client: &mut T,
         operator_count: usize,
     ) -> Result<(Pubkey, BlsNcnRoot)> {
@@ -54,7 +54,7 @@ mod tests {
     }
 
     /// Setup ballot data with optional message and consensus_count overrides
-    async fn setup_ballot<T: JitoClient>(
+    async fn setup_ballot<T: JitoClientTrait>(
         client: &T,
         ncn: &Pubkey,
         message: Option<[u8; 32]>,

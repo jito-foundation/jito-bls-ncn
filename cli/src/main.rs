@@ -1,6 +1,8 @@
-use anyhow::{anyhow, Ok, Result};
+use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
-use solana_client::rpc_client::RpcClient;
+use jito_bls_ncn_clients::jito_clients::{
+    rpc::JitoRpcClient, surf_pool::JitoSurfPoolClient, JitoClient, JitoClientTrait,
+};
 use solana_keypair::Pubkey;
 use std::str::FromStr;
 
@@ -15,8 +17,9 @@ struct Cli {
         env = "RPC",
         default_value = "https://api.mainnet-beta.solana.com"
     )]
-    rpc: String,
-
+    rpc_url: String,
+    #[arg(short, long, env = "Surfpool")]
+    surfpool: bool,
     #[command(subcommand)]
     command: Commands,
 }
@@ -29,27 +32,35 @@ enum Commands {
         #[arg(short, long, env = "WALLET")]
         wallet: String,
     },
+    SurfpoolCreateTestNcn {},
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     dotenv::dotenv().ok();
     let cli = Cli::parse();
 
-    let rpc_client = RpcClient::new(cli.rpc.clone());
+    let client = if cli.surfpool {
+        JitoClient::SurfPool(JitoSurfPoolClient::new())
+    } else {
+        JitoClient::Rpc(JitoRpcClient::new(cli.rpc_url))
+    };
 
     // Match on the subcommand
     match &cli.command {
         Commands::View { wallet } => {
             let wallet_pubkey =
                 Pubkey::from_str(wallet).map_err(|e| anyhow!("Could not read wallet: {}", e))?;
-
-            view(&rpc_client, &wallet_pubkey)
+            view(&client, &wallet_pubkey).await
+        }
+        Commands::SurfpoolCreateTestNcn {} => {
+            todo!()
         }
     }
 }
 
-pub fn view(_rpc_client: &RpcClient, wallet: &Pubkey) -> Result<()> {
-    println!("Wallet: {}", wallet);
-
+pub async fn view(client: &JitoClient, wallet: &Pubkey) -> Result<()> {
+    let account = client.get_account(wallet).await?;
+    println!("Wallet: {} ({})", wallet, account.lamports);
     Ok(())
 }

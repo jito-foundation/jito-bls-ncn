@@ -2699,11 +2699,16 @@ dependencies = [
  "anyhow",
  "clap",
  "dotenv",
+ "hex",
+ "jito-bls-ncn-clients",
+ "jito-bls-ncn-core",
+ "jito-bls-ncn-sdk",
  "solana-account-decoder",
  "solana-client",
  "solana-keypair",
  "solana-signer",
  "solana-transaction",
+ "tokio",
 ]
 
 [[package]]
@@ -2731,6 +2736,7 @@ dependencies = [
  "solana-transaction",
  "spl-associated-token-account-interface",
  "spl-token-interface",
+ "tokio",
 ]
 
 [[package]]

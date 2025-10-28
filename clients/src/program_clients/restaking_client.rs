@@ -18,7 +18,7 @@ use solana_pubkey::Pubkey;
 use solana_signer::Signer;
 use solana_transaction::Transaction;
 
-use crate::jito_clients::JitoClient;
+use crate::jito_clients::JitoClientTrait;
 
 #[derive(Debug)]
 pub struct NcnRoot {
@@ -50,26 +50,29 @@ impl Clone for OperatorRoot {
     }
 }
 
-pub async fn get_config<T: JitoClient>(jito_client: &T) -> Result<Config> {
+pub async fn get_config<T: JitoClientTrait>(jito_client: &T) -> Result<Config> {
     let (address, _, _) = config_address();
     let account_raw = jito_client.get_account(&address).await?;
     let account = unsafe { load_account::<Config>(&account_raw.data)? };
     Ok(*account)
 }
 
-pub async fn get_ncn<T: JitoClient>(jito_client: &T, ncn: &Pubkey) -> Result<Ncn> {
+pub async fn get_ncn<T: JitoClientTrait>(jito_client: &T, ncn: &Pubkey) -> Result<Ncn> {
     let account_raw = jito_client.get_account(ncn).await?;
     let account = unsafe { load_account::<Ncn>(&account_raw.data)? };
     Ok(*account)
 }
 
-pub async fn get_operator<T: JitoClient>(jito_client: &T, operator: &Pubkey) -> Result<Operator> {
+pub async fn get_operator<T: JitoClientTrait>(
+    jito_client: &T,
+    operator: &Pubkey,
+) -> Result<Operator> {
     let account_raw = jito_client.get_account(operator).await?;
     let account = unsafe { load_account::<Operator>(&account_raw.data)? };
     Ok(*account)
 }
 
-pub async fn get_ncn_vault_ticket<T: JitoClient>(
+pub async fn get_ncn_vault_ticket<T: JitoClientTrait>(
     jito_client: &T,
     ncn: &Pubkey,
     vault: &Pubkey,
@@ -80,7 +83,7 @@ pub async fn get_ncn_vault_ticket<T: JitoClient>(
     Ok(*account)
 }
 
-pub async fn get_ncn_operator_state<T: JitoClient>(
+pub async fn get_ncn_operator_state<T: JitoClientTrait>(
     jito_client: &T,
     ncn: &Pubkey,
     operator: &Pubkey,
@@ -91,7 +94,7 @@ pub async fn get_ncn_operator_state<T: JitoClient>(
     Ok(*account)
 }
 
-pub async fn get_operator_vault_ticket<T: JitoClient>(
+pub async fn get_operator_vault_ticket<T: JitoClientTrait>(
     jito_client: &T,
     operator: &Pubkey,
     vault: &Pubkey,
@@ -102,7 +105,7 @@ pub async fn get_operator_vault_ticket<T: JitoClient>(
     Ok(*account)
 }
 
-pub async fn test_initialize_config<T: JitoClient>(jito_client: &mut T) -> Result<Keypair> {
+pub async fn test_initialize_config<T: JitoClientTrait>(jito_client: &mut T) -> Result<Keypair> {
     let restaking_config_admin = Keypair::new();
     let (config, _, _) = config_address();
 
@@ -114,7 +117,7 @@ pub async fn test_initialize_config<T: JitoClient>(jito_client: &mut T) -> Resul
     Ok(restaking_config_admin)
 }
 
-pub async fn initialize_config<T: JitoClient>(
+pub async fn initialize_config<T: JitoClientTrait>(
     jito_client: &mut T,
     config: &Pubkey,
     config_admin: &Keypair,
@@ -136,7 +139,9 @@ pub async fn initialize_config<T: JitoClient>(
     Ok(())
 }
 
-pub async fn test_initialize_operator<T: JitoClient>(jito_client: &mut T) -> Result<OperatorRoot> {
+pub async fn test_initialize_operator<T: JitoClientTrait>(
+    jito_client: &mut T,
+) -> Result<OperatorRoot> {
     let operator_base = Keypair::new();
     let operator_admin = jito_client.keypair().insecure_clone();
     let (operator_pubkey, _, _) = operator_address(&operator_base.pubkey());
@@ -164,7 +169,7 @@ pub async fn test_initialize_operator<T: JitoClient>(jito_client: &mut T) -> Res
     })
 }
 
-pub async fn initialize_operator<T: JitoClient>(
+pub async fn initialize_operator<T: JitoClientTrait>(
     jito_client: &mut T,
     config: &Pubkey,
     operator: &Pubkey,
@@ -190,7 +195,7 @@ pub async fn initialize_operator<T: JitoClient>(
     Ok(())
 }
 
-pub async fn test_initialize_ncn<T: JitoClient>(jito_client: &mut T) -> Result<NcnRoot> {
+pub async fn test_initialize_ncn<T: JitoClientTrait>(jito_client: &mut T) -> Result<NcnRoot> {
     let ncn_base = Keypair::new();
     let ncn_admin = jito_client.keypair().insecure_clone();
     let (ncn_pubkey, _, _) = ncn_address(&ncn_base.pubkey());
@@ -208,7 +213,7 @@ pub async fn test_initialize_ncn<T: JitoClient>(jito_client: &mut T) -> Result<N
     })
 }
 
-pub async fn initialize_ncn<T: JitoClient>(
+pub async fn initialize_ncn<T: JitoClientTrait>(
     jito_client: &mut T,
     config: &Pubkey,
     ncn: &Pubkey,
@@ -232,7 +237,7 @@ pub async fn initialize_ncn<T: JitoClient>(
     Ok(())
 }
 
-pub async fn test_initialize_ncn_vault_ticket<T: JitoClient>(
+pub async fn test_initialize_ncn_vault_ticket<T: JitoClientTrait>(
     jito_client: &mut T,
     ncn_root: &NcnRoot,
     vault: &Pubkey,
@@ -253,7 +258,7 @@ pub async fn test_initialize_ncn_vault_ticket<T: JitoClient>(
     Ok(())
 }
 
-pub async fn initialize_ncn_vault_ticket<T: JitoClient>(
+pub async fn initialize_ncn_vault_ticket<T: JitoClientTrait>(
     jito_client: &mut T,
     config: &Pubkey,
     ncn: &Pubkey,
@@ -280,7 +285,7 @@ pub async fn initialize_ncn_vault_ticket<T: JitoClient>(
     Ok(())
 }
 
-pub async fn test_warmup_ncn_vault_ticket<T: JitoClient>(
+pub async fn test_warmup_ncn_vault_ticket<T: JitoClientTrait>(
     jito_client: &mut T,
     ncn_root: &NcnRoot,
     vault: &Pubkey,
@@ -301,7 +306,7 @@ pub async fn test_warmup_ncn_vault_ticket<T: JitoClient>(
     Ok(())
 }
 
-pub async fn warmup_ncn_vault_ticket<T: JitoClient>(
+pub async fn warmup_ncn_vault_ticket<T: JitoClientTrait>(
     jito_client: &mut T,
     config: &Pubkey,
     ncn: &Pubkey,
@@ -327,7 +332,7 @@ pub async fn warmup_ncn_vault_ticket<T: JitoClient>(
     Ok(())
 }
 
-pub async fn test_initialize_ncn_operator_state<T: JitoClient>(
+pub async fn test_initialize_ncn_operator_state<T: JitoClientTrait>(
     jito_client: &mut T,
     ncn_root: &NcnRoot,
     operator_root: &OperatorRoot,
@@ -349,7 +354,7 @@ pub async fn test_initialize_ncn_operator_state<T: JitoClient>(
     Ok(())
 }
 
-pub async fn initialize_ncn_operator_state<T: JitoClient>(
+pub async fn initialize_ncn_operator_state<T: JitoClientTrait>(
     jito_client: &mut T,
     config: &Pubkey,
     ncn: &Pubkey,
@@ -376,7 +381,7 @@ pub async fn initialize_ncn_operator_state<T: JitoClient>(
     Ok(())
 }
 
-pub async fn test_ncn_warmup_operator<T: JitoClient>(
+pub async fn test_ncn_warmup_operator<T: JitoClientTrait>(
     jito_client: &mut T,
     ncn_root: &NcnRoot,
     operator: &Pubkey,
@@ -397,7 +402,7 @@ pub async fn test_ncn_warmup_operator<T: JitoClient>(
     Ok(())
 }
 
-pub async fn ncn_warmup_operator<T: JitoClient>(
+pub async fn ncn_warmup_operator<T: JitoClientTrait>(
     jito_client: &mut T,
     config: &Pubkey,
     ncn: &Pubkey,
@@ -423,7 +428,7 @@ pub async fn ncn_warmup_operator<T: JitoClient>(
     Ok(())
 }
 
-pub async fn test_ncn_cooldown_operator<T: JitoClient>(
+pub async fn test_ncn_cooldown_operator<T: JitoClientTrait>(
     jito_client: &mut T,
     ncn_root: &NcnRoot,
     operator: &Pubkey,
@@ -444,7 +449,7 @@ pub async fn test_ncn_cooldown_operator<T: JitoClient>(
     Ok(())
 }
 
-pub async fn ncn_cooldown_operator<T: JitoClient>(
+pub async fn ncn_cooldown_operator<T: JitoClientTrait>(
     jito_client: &mut T,
     config: &Pubkey,
     ncn: &Pubkey,
@@ -470,7 +475,7 @@ pub async fn ncn_cooldown_operator<T: JitoClient>(
     Ok(())
 }
 
-pub async fn test_ncn_set_admin<T: JitoClient>(
+pub async fn test_ncn_set_admin<T: JitoClientTrait>(
     jito_client: &mut T,
     ncn: &Pubkey,
     old_admin: &Keypair,
@@ -481,7 +486,7 @@ pub async fn test_ncn_set_admin<T: JitoClient>(
     Ok(())
 }
 
-pub async fn ncn_set_admin<T: JitoClient>(
+pub async fn ncn_set_admin<T: JitoClientTrait>(
     jito_client: &mut T,
     ncn: &Pubkey,
     old_admin: &Keypair,
@@ -503,7 +508,7 @@ pub async fn ncn_set_admin<T: JitoClient>(
     Ok(())
 }
 
-pub async fn test_initialize_operator_vault_ticket<T: JitoClient>(
+pub async fn test_initialize_operator_vault_ticket<T: JitoClientTrait>(
     jito_client: &mut T,
     operator_root: &OperatorRoot,
     vault: &Pubkey,
@@ -526,7 +531,7 @@ pub async fn test_initialize_operator_vault_ticket<T: JitoClient>(
     Ok(())
 }
 
-pub async fn initialize_operator_vault_ticket<T: JitoClient>(
+pub async fn initialize_operator_vault_ticket<T: JitoClientTrait>(
     jito_client: &mut T,
     config: &Pubkey,
     operator: &Pubkey,
@@ -554,7 +559,7 @@ pub async fn initialize_operator_vault_ticket<T: JitoClient>(
     Ok(())
 }
 
-pub async fn test_warmup_operator_vault_ticket<T: JitoClient>(
+pub async fn test_warmup_operator_vault_ticket<T: JitoClientTrait>(
     jito_client: &mut T,
     operator_root: &OperatorRoot,
     vault: &Pubkey,
@@ -576,7 +581,7 @@ pub async fn test_warmup_operator_vault_ticket<T: JitoClient>(
     Ok(())
 }
 
-pub async fn warmup_operator_vault_ticket<T: JitoClient>(
+pub async fn warmup_operator_vault_ticket<T: JitoClientTrait>(
     jito_client: &mut T,
     config: &Pubkey,
     operator: &Pubkey,
@@ -602,7 +607,7 @@ pub async fn warmup_operator_vault_ticket<T: JitoClient>(
     Ok(())
 }
 
-pub async fn test_operator_warmup_ncn<T: JitoClient>(
+pub async fn test_operator_warmup_ncn<T: JitoClientTrait>(
     jito_client: &mut T,
     operator_root: &OperatorRoot,
     ncn: &Pubkey,
@@ -624,7 +629,7 @@ pub async fn test_operator_warmup_ncn<T: JitoClient>(
     Ok(())
 }
 
-pub async fn operator_warmup_ncn<T: JitoClient>(
+pub async fn operator_warmup_ncn<T: JitoClientTrait>(
     jito_client: &mut T,
     config: &Pubkey,
     ncn: &Pubkey,
@@ -650,7 +655,7 @@ pub async fn operator_warmup_ncn<T: JitoClient>(
     Ok(())
 }
 
-pub async fn test_operator_cooldown_ncn<T: JitoClient>(
+pub async fn test_operator_cooldown_ncn<T: JitoClientTrait>(
     jito_client: &mut T,
     operator_root: &OperatorRoot,
     ncn: &Pubkey,
@@ -672,7 +677,7 @@ pub async fn test_operator_cooldown_ncn<T: JitoClient>(
     Ok(())
 }
 
-pub async fn operator_cooldown_ncn<T: JitoClient>(
+pub async fn operator_cooldown_ncn<T: JitoClientTrait>(
     jito_client: &mut T,
     config: &Pubkey,
     ncn: &Pubkey,
@@ -698,7 +703,7 @@ pub async fn operator_cooldown_ncn<T: JitoClient>(
     Ok(())
 }
 
-pub async fn test_operator_set_fee<T: JitoClient>(
+pub async fn test_operator_set_fee<T: JitoClientTrait>(
     jito_client: &mut T,
     operator_root: &OperatorRoot,
     new_fee_bps: u16,
@@ -717,7 +722,7 @@ pub async fn test_operator_set_fee<T: JitoClient>(
     Ok(())
 }
 
-pub async fn operator_set_fee<T: JitoClient>(
+pub async fn operator_set_fee<T: JitoClientTrait>(
     jito_client: &mut T,
     config: &Pubkey,
     operator: &Pubkey,

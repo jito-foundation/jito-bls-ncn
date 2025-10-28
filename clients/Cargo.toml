@@ -34,3 +34,4 @@ solana-system-transaction = { workspace = true }
 solana-transaction = { workspace = true }
 spl-associated-token-account-interface = { workspace = true }
 spl-token-interface = { workspace = true }
+tokio = { version = "1.48.0", features = ["full"] }

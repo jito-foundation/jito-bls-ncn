@@ -2,7 +2,7 @@
 mod tests {
     use anyhow::Result;
     use jito_bls_ncn_clients::{
-        jito_clients::JitoClient,
+        jito_clients::JitoClientTrait,
         program_clients::meta_restaking_client::{
             add_delegation_in_test_ncn, add_operators_to_test_ncn, add_vaults_to_test_ncn,
             create_test_ncn, update_all_vaults_in_test_ncn,
