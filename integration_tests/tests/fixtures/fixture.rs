@@ -2,7 +2,7 @@
 #![allow(unused_imports)]
 
 use anyhow::Result;
-use jito_bls_ncn_clients::jito_clients::JitoClientTrait;
+use jito_bls_ncn_clients::jito_clients::{JitoClient, JitoClientTrait};
 use jito_bls_ncn_sdk::bls_ncn_sdk::id;
 use solana_program_test::ProgramTest;
 use solana_signer::Signer;
@@ -17,13 +17,6 @@ use jito_bls_ncn_clients::jito_clients::surf_pool::JitoSurfPoolClient;
 #[cfg(feature = "test-program")]
 use jito_bls_ncn_clients::jito_clients::solana_test_program::JitoSolanaTestProgramClient;
 
-// Priority: test-program > surfpool
-#[cfg(feature = "test-program")]
-pub type TestClient = JitoSolanaTestProgramClient;
-
-#[cfg(all(feature = "surfpool", not(feature = "test-program")))]
-pub type TestClient = JitoSurfPoolClient;
-
 #[cfg(not(any(feature = "surfpool", feature = "test-program")))]
 compile_error!("Either 'surfpool' or 'test-program' feature must be enabled");
 
@@ -31,7 +24,7 @@ compile_error!("Either 'surfpool' or 'test-program' feature must be enabled");
 // Client creation
 // ===========================================================================
 
-pub async fn create_test_client() -> Result<TestClient> {
+pub async fn create_test_client() -> Result<JitoClient> {
     #[cfg(feature = "test-program")]
     {
         create_test_program_client().await
@@ -48,7 +41,7 @@ pub async fn create_test_client() -> Result<TestClient> {
 // ===========================================================================
 
 #[cfg(feature = "test-program")]
-async fn create_test_program_client() -> Result<JitoSolanaTestProgramClient> {
+async fn create_test_program_client() -> Result<JitoClient> {
     // Setup BPF directory for loading programs
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set");
     let programs_dir = std::path::PathBuf::from(manifest_dir)
@@ -85,7 +78,7 @@ async fn create_test_program_client() -> Result<JitoSolanaTestProgramClient> {
 }
 
 #[cfg(feature = "surfpool")]
-async fn create_surfpool_client() -> Result<JitoSurfPoolClient> {
+async fn create_surfpool_client() -> Result<JitoClient> {
     let mut client = JitoSurfPoolClient::new();
     let payer = client.keypair();
 

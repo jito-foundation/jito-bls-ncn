@@ -7,16 +7,35 @@ use jito_bls_ncn_core::{
 };
 use solana_account_info::AccountInfo;
 use solana_msg::msg;
+use solana_program::{clock::Clock, sysvar::Sysvar};
 use solana_program_error::{ProgramError, ProgramResult};
 use solana_pubkey::Pubkey;
 
 use crate::errors::BlsNcnError;
 
 pub fn process_vote(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
-    let [rolling_snapshot, consensus, ncn] = accounts else {
+    let [rolling_snapshot, consensus, restaking_config, ncn] = accounts else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
     let ix_data = unsafe { load_ix_data::<VoteIxData>(data)? };
+
+    let clock = Clock::get()?;
+    let current_slot = clock.slot;
+
+    let epoch_length: u64 = {
+        jito_bls_ncn_core::programs::restaking_core::Config::check(
+            &jito_bls_ncn_core::programs::restaking_core::id(),
+            restaking_config,
+            false,
+        )?;
+        let restaking_config_data = restaking_config.try_borrow_data()?;
+        let restaking_config_account = unsafe {
+            load_account::<jito_bls_ncn_core::programs::restaking_core::Config>(
+                &restaking_config_data,
+            )?
+        };
+        restaking_config_account.epoch_length.get()
+    };
 
     Ncn::check(
         &jito_bls_ncn_core::programs::restaking_core::id(),
@@ -54,7 +73,8 @@ pub fn process_vote(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) 
     }
 
     let mut aggregated_g1_nonsigners_pubkey: Option<[u8; 64]> = None;
-    let mut non_signers_count: u64 = 0;
+    let mut signer_count: u16 = 0;
+    let mut weight_tally: u128 = 0;
 
     for (index, operator) in rolling_snapshot_account.operators.iter().enumerate() {
         if let Some(operator) = operator.as_ref() {
@@ -65,11 +85,13 @@ pub fn process_vote(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) 
                     return Err(BlsNcnError::BitmapCheckFailed.into());
                 }
             };
+            let can_sign = operator.can_sign(
+                current_slot,
+                epoch_length,
+                rolling_snapshot_account.consensus_weight_threshold,
+            )?;
 
-            if !did_sign {
-                non_signers_count = non_signers_count
-                    .checked_add(1)
-                    .ok_or(BlsNcnError::ArithmaticOverflow)?;
+            if !did_sign || !can_sign {
                 if let Some(nonsigners) = aggregated_g1_nonsigners_pubkey {
                     let new_aggregated_g1_nonsigners_pubkey =
                         match add_g1(&nonsigners, &operator.g1) {
@@ -86,22 +108,35 @@ pub fn process_vote(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) 
                     aggregated_g1_nonsigners_pubkey = Some(operator.g1);
                 }
             } else {
-                //TODO check stake
+                let operator_weight = operator.total_security(current_slot, epoch_length)?;
+                weight_tally = weight_tally
+                    .checked_add(operator_weight)
+                    .ok_or(ProgramError::ArithmeticOverflow)?;
+
+                signer_count = signer_count
+                    .checked_add(1)
+                    .ok_or(BlsNcnError::ArithmaticOverflow)?;
             }
         } else {
             break;
         }
     }
 
-    let consensus_threshold = (rolling_snapshot_account.operator_count() as u64)
-        .checked_div(3)
-        .ok_or(BlsNcnError::ArithmaticUnderflow)?;
-
-    if non_signers_count > consensus_threshold {
+    let reached_consensus = rolling_snapshot_account.reached_consensus(
+        current_slot,
+        epoch_length,
+        signer_count,
+        weight_tally,
+    )?;
+    if !reached_consensus {
         msg!(
-            "Quorum not met: non-signers count ({}) exceeds 1/3 of registered operators ({})",
-            non_signers_count,
-            rolling_snapshot_account.operator_count()
+            "Consensus not reached: signers ({})/({}), weight ({})/({}), weight threshold ({:?}), consensus threshold BPS ({:?})",
+            signer_count,
+            rolling_snapshot_account.operator_count(),
+            weight_tally,
+            rolling_snapshot_account.total_security(current_slot, epoch_length)?,
+            rolling_snapshot_account.consensus_weight_threshold,
+            rolling_snapshot_account.consensus_threshold_bps
         );
         return Err(ProgramError::AccountAlreadyInitialized);
     }

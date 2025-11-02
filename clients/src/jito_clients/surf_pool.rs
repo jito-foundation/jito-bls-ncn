@@ -3,7 +3,8 @@ use log::error;
 use serde_json::{json, Value};
 use solana_account::Account;
 use solana_client::{
-    nonblocking::rpc_client::RpcClient, rpc_config::RpcSendTransactionConfig,
+    nonblocking::rpc_client::RpcClient,
+    rpc_config::{RpcProgramAccountsConfig, RpcSendTransactionConfig},
     rpc_request::RpcRequest,
 };
 use solana_commitment_config::{CommitmentConfig, CommitmentLevel};
@@ -13,7 +14,7 @@ use solana_pubkey::Pubkey;
 use solana_signature::Signature;
 use solana_transaction::{Hash, Transaction};
 
-use crate::jito_clients::{JitoClientTrait, JitoClientType};
+use crate::jito_clients::{JitoClient, JitoClientTrait, JitoClientType};
 
 // --------------------------- JITO SurfPool Client -------------------------------
 pub struct JitoSurfPoolClient {
@@ -33,16 +34,17 @@ impl Default for JitoSurfPoolClient {
 }
 
 impl JitoSurfPoolClient {
-    pub fn new() -> Self {
-        JitoSurfPoolClient::default()
+    #[allow(clippy::new_ret_no_self)]
+    pub fn new() -> JitoClient {
+        JitoClient::SurfPool(JitoSurfPoolClient::default())
     }
 
-    pub fn new_with_keypair(keypair: Keypair) -> Self {
-        JitoSurfPoolClient {
+    pub fn new_with_keypair(keypair: Keypair) -> JitoClient {
+        JitoClient::SurfPool(JitoSurfPoolClient {
             client_type: JitoClientType::Surfpool,
             rpc_client: RpcClient::new("http://127.0.0.1:8899".to_string()),
             keypair,
-        }
+        })
     }
 }
 
@@ -60,6 +62,17 @@ impl JitoClientTrait for JitoSurfPoolClient {
             .get_account(address)
             .await
             .map_err(|e| anyhow!("Could not get account for {}: {}", address, e))
+    }
+
+    async fn get_program_accounts_with_config(
+        &self,
+        address: &Pubkey,
+        config: RpcProgramAccountsConfig,
+    ) -> Result<Vec<(Pubkey, Account)>> {
+        self.rpc_client
+            .get_program_accounts_with_config(address, config)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to get program accounts: {}", e))
     }
 
     async fn get_balance(&self, address: &Pubkey) -> Result<u64> {

@@ -1,4 +1,8 @@
-use crate::{errors::BlsNcnProgramError, pod::PodU64, utils::JitoIxData};
+use crate::{
+    errors::BlsNcnProgramError,
+    pod::{PodU16, PodU64},
+    utils::JitoIxData,
+};
 
 #[repr(u64)]
 pub enum JitoBlsNCNInstructions {
@@ -9,8 +13,11 @@ pub enum JitoBlsNCNInstructions {
 
     RegisterBlsOperator = 0x10,
     RemoveBlsOperator = 0x11,
+    RegisterVault = 0x12,
 
-    Vote = 0x20,
+    Snapshot = 0x20,
+
+    Vote = 0x30,
 }
 
 const _: () = assert!(JitoBlsNCNInstructions::InitializeConfig as u8 != 0);
@@ -19,6 +26,8 @@ const _: () = assert!(JitoBlsNCNInstructions::InitializeRollingSnapshot as u8 !=
 const _: () = assert!(JitoBlsNCNInstructions::InitializeBlsOperator as u8 != 0);
 const _: () = assert!(JitoBlsNCNInstructions::RegisterBlsOperator as u8 != 0);
 const _: () = assert!(JitoBlsNCNInstructions::RemoveBlsOperator as u8 != 0);
+const _: () = assert!(JitoBlsNCNInstructions::RegisterVault as u8 != 0);
+const _: () = assert!(JitoBlsNCNInstructions::Snapshot as u8 != 0);
 const _: () = assert!(JitoBlsNCNInstructions::Vote as u8 != 0);
 
 impl TryFrom<u64> for JitoBlsNCNInstructions {
@@ -30,9 +39,12 @@ impl TryFrom<u64> for JitoBlsNCNInstructions {
             0x02 => Ok(JitoBlsNCNInstructions::InitializeConsensus),
             0x03 => Ok(JitoBlsNCNInstructions::InitializeRollingSnapshot),
             0x04 => Ok(JitoBlsNCNInstructions::InitializeBlsOperator),
+            0x05 => Ok(JitoBlsNCNInstructions::RegisterVault),
             0x10 => Ok(JitoBlsNCNInstructions::RegisterBlsOperator),
             0x11 => Ok(JitoBlsNCNInstructions::RemoveBlsOperator),
-            0x20 => Ok(JitoBlsNCNInstructions::Vote),
+            0x12 => Ok(JitoBlsNCNInstructions::RegisterVault),
+            0x20 => Ok(JitoBlsNCNInstructions::Snapshot),
+            0x30 => Ok(JitoBlsNCNInstructions::Vote),
             _ => Err(BlsNcnProgramError::InvalidInstruction),
         }
     }
@@ -196,6 +208,64 @@ impl Default for RegisterBlsOperatorIxData {
 impl RegisterBlsOperatorIxData {
     pub fn new() -> Self {
         Self::default()
+    }
+}
+
+// -------------------- REGISTER VAULT -----------------------------
+
+#[repr(C, packed)]
+pub struct RegisterVaultIxData {
+    pub discriminator: PodU64,
+    pub weight_bps: PodU16,
+}
+
+/// # Safety
+/// Caller must ensure everything is 1 byte aligned
+unsafe impl JitoIxData for RegisterVaultIxData {
+    const DISCRIMINATOR: u64 = JitoBlsNCNInstructions::RegisterVault as u64;
+    const LEN: usize = size_of::<Self>();
+
+    unsafe fn to_bytes(&self) -> &[u8] {
+        unsafe { crate::utils::ix_data_to_bytes::<Self>(self) }
+    }
+}
+
+impl RegisterVaultIxData {
+    pub fn new(weight_bps: u16) -> Self {
+        Self {
+            discriminator: PodU64::from(Self::DISCRIMINATOR),
+            weight_bps: PodU16::from(weight_bps),
+        }
+    }
+}
+
+// -------------------- SNAPSHOT -----------------------------
+
+#[repr(C, packed)]
+pub struct SnapshotIxData {
+    pub discriminator: PodU64,
+    pub operator_index: PodU16,
+    pub vault_index: PodU16,
+}
+
+/// # Safety
+/// Caller must ensure everything is 1 byte aligned
+unsafe impl JitoIxData for SnapshotIxData {
+    const DISCRIMINATOR: u64 = JitoBlsNCNInstructions::Snapshot as u64;
+    const LEN: usize = size_of::<Self>();
+
+    unsafe fn to_bytes(&self) -> &[u8] {
+        unsafe { crate::utils::ix_data_to_bytes::<Self>(self) }
+    }
+}
+
+impl SnapshotIxData {
+    pub fn new(operator_index: usize, vault_index: usize) -> Self {
+        Self {
+            discriminator: PodU64::from(Self::DISCRIMINATOR),
+            operator_index: PodU16::from(operator_index as u16),
+            vault_index: PodU16::from(vault_index as u16),
+        }
     }
 }
 

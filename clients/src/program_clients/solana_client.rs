@@ -9,13 +9,9 @@ use solana_transaction::Transaction;
 use spl_associated_token_account_interface::address::get_associated_token_address;
 use spl_token_interface::state::{Account as TokenAccount, Mint};
 
-use crate::jito_clients::JitoClientTrait;
+use crate::jito_clients::{JitoClient, JitoClientTrait};
 
-pub async fn transfer<T: JitoClientTrait>(
-    jito_client: &T,
-    to: &Pubkey,
-    lamports: u64,
-) -> Result<()> {
+pub async fn transfer(jito_client: &JitoClient, to: &Pubkey, lamports: u64) -> Result<()> {
     let payer = jito_client.keypair();
     let blockhash = jito_client.get_recent_blockhash().await?;
     let tx = solana_system_transaction::transfer(payer, to, lamports, blockhash);
@@ -25,8 +21,8 @@ pub async fn transfer<T: JitoClientTrait>(
     Ok(())
 }
 
-pub async fn transfer_token<T: JitoClientTrait>(
-    jito_client: &T,
+pub async fn transfer_token(
+    jito_client: &JitoClient,
     destination: &Pubkey,
     mint: &Pubkey,
     amount: u64,
@@ -70,14 +66,14 @@ pub async fn transfer_token<T: JitoClientTrait>(
     Ok(())
 }
 
-pub async fn get_mint<T: JitoClientTrait>(jito_client: &T, mint: &Pubkey) -> Result<Mint> {
+pub async fn get_mint(jito_client: &JitoClient, mint: &Pubkey) -> Result<Mint> {
     let mint_account_raw = jito_client.get_account(mint).await?;
     let mint_account = Mint::unpack(&mint_account_raw.data)?;
     Ok(mint_account)
 }
 
-pub async fn get_associated_token_account<T: JitoClientTrait>(
-    jito_client: &T,
+pub async fn get_associated_token_account(
+    jito_client: &JitoClient,
     owner: &Pubkey,
     mint: &Pubkey,
 ) -> Result<TokenAccount> {
@@ -85,18 +81,15 @@ pub async fn get_associated_token_account<T: JitoClientTrait>(
     get_token_account(jito_client, &ata).await
 }
 
-pub async fn get_token_account<T: JitoClientTrait>(
-    jito_client: &T,
-    token: &Pubkey,
-) -> Result<TokenAccount> {
+pub async fn get_token_account(jito_client: &JitoClient, token: &Pubkey) -> Result<TokenAccount> {
     let token_account_raw = jito_client.get_account(token).await?;
     let token_account = TokenAccount::unpack(&token_account_raw.data)?;
 
     Ok(token_account)
 }
 
-pub async fn create_mint<T: JitoClientTrait>(
-    jito_client: &T,
+pub async fn create_mint(
+    jito_client: &JitoClient,
     mint: &Keypair,
     decimals: u8,
     mint_authority: Option<&Pubkey>,
@@ -151,8 +144,8 @@ pub async fn create_mint<T: JitoClientTrait>(
 }
 
 /// Mints tokens to an ATA owned by the `to` address
-pub async fn mint_spl_to<T: JitoClientTrait>(
-    jito_client: &T,
+pub async fn mint_spl_to(
+    jito_client: &JitoClient,
     mint: &Pubkey,
     to: &Pubkey,
     amount: u64,
@@ -195,8 +188,8 @@ pub async fn mint_spl_to<T: JitoClientTrait>(
     Ok(())
 }
 
-pub async fn create_ata<T: JitoClientTrait>(
-    jito_client: &T,
+pub async fn create_ata(
+    jito_client: &JitoClient,
     wallet: &Pubkey,
     mint: &Pubkey,
     token_program: Option<Pubkey>,

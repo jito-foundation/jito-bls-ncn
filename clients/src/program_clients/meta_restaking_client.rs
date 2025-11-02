@@ -2,7 +2,7 @@ use anyhow::Result;
 use solana_keypair::Keypair;
 use solana_signer::Signer;
 
-use crate::jito_clients::JitoClientTrait;
+use crate::jito_clients::{JitoClient, JitoClientTrait};
 use crate::program_clients::restaking_client::{NcnRoot, OperatorRoot};
 use crate::program_clients::vault_client::VaultRoot;
 
@@ -15,7 +15,7 @@ pub struct TestNcn {
 
 /// Basic restaking setup with config initialization
 /// Initializes both vault and restaking configs
-pub async fn setup_restaking<T: JitoClientTrait>(jito_client: &mut T) -> Result<()> {
+pub async fn setup_restaking(jito_client: &mut JitoClient) -> Result<()> {
     // Initialize vault config
     crate::program_clients::vault_client::test_initialize_config(jito_client).await?;
 
@@ -27,7 +27,7 @@ pub async fn setup_restaking<T: JitoClientTrait>(jito_client: &mut T) -> Result<
 
 /// Create a test NCN with full setup
 /// Initializes configs and creates an NCN
-pub async fn create_test_ncn<T: JitoClientTrait>(jito_client: &mut T) -> Result<TestNcn> {
+pub async fn create_test_ncn(jito_client: &mut JitoClient) -> Result<TestNcn> {
     // Initialize NCN
     let ncn_root =
         crate::program_clients::restaking_client::test_initialize_ncn(jito_client).await?;
@@ -40,8 +40,8 @@ pub async fn create_test_ncn<T: JitoClientTrait>(jito_client: &mut T) -> Result<
 }
 
 /// Add multiple operators to a test NCN and warm them up
-pub async fn add_operators_to_test_ncn<T: JitoClientTrait>(
-    jito_client: &mut T,
+pub async fn add_operators_to_test_ncn(
+    jito_client: &mut JitoClient,
     test_ncn: &mut TestNcn,
     operator_count: usize,
     operator_fees_bps: Option<u16>,
@@ -113,8 +113,8 @@ pub async fn add_operators_to_test_ncn<T: JitoClientTrait>(
 }
 
 /// Add multiple vaults to a test NCN, connecting them to the NCN and all operators
-pub async fn add_vaults_to_test_ncn<T: JitoClientTrait>(
-    jito_client: &mut T,
+pub async fn add_vaults_to_test_ncn(
+    jito_client: &mut JitoClient,
     test_ncn: &mut TestNcn,
     vault_count: usize,
     token_mint: Option<Keypair>,
@@ -291,18 +291,20 @@ pub async fn add_vaults_to_test_ncn<T: JitoClientTrait>(
 }
 
 /// Add delegations from vaults to operators
-pub async fn add_delegation_in_test_ncn<T: JitoClientTrait>(
-    jito_client: &mut T,
+pub async fn add_delegation_in_test_ncn(
+    jito_client: &mut JitoClient,
     test_ncn: &TestNcn,
-    delegation_amount: usize,
+    operator_delegation_pattern: Vec<u64>,
 ) -> Result<()> {
-    for vault_root in test_ncn.vaults.iter() {
-        for operator_root in test_ncn.operators.iter() {
+    for (index, operator_root) in test_ncn.operators.iter().enumerate() {
+        let delegation = operator_delegation_pattern[index % operator_delegation_pattern.len()];
+
+        for vault_root in test_ncn.vaults.iter() {
             crate::program_clients::vault_client::test_add_delegation(
                 jito_client,
                 vault_root,
                 &operator_root.operator_pubkey,
-                delegation_amount as u64,
+                delegation,
             )
             .await?;
         }
@@ -311,8 +313,8 @@ pub async fn add_delegation_in_test_ncn<T: JitoClientTrait>(
     Ok(())
 }
 
-pub async fn update_all_vaults_in_test_ncn<T: JitoClientTrait>(
-    jito_client: &mut T,
+pub async fn update_all_vaults_in_test_ncn(
+    jito_client: &mut JitoClient,
     test_ncn: &TestNcn,
 ) -> Result<()> {
     for vault_root in test_ncn.vaults.iter() {

@@ -1,5 +1,6 @@
 use anyhow::Result;
 use solana_account::Account;
+use solana_client::rpc_config::RpcProgramAccountsConfig;
 use solana_commitment_config::CommitmentLevel;
 use solana_epoch_info::EpochInfo;
 use solana_keypair::Keypair;
@@ -25,6 +26,11 @@ pub trait JitoClientTrait {
     fn keypair(&self) -> &Keypair;
 
     async fn get_account(&self, address: &Pubkey) -> Result<Account>;
+    async fn get_program_accounts_with_config(
+        &self,
+        address: &Pubkey,
+        config: RpcProgramAccountsConfig,
+    ) -> Result<Vec<(Pubkey, Account)>>;
     async fn get_balance(&self, address: &Pubkey) -> Result<u64>;
     async fn get_recent_blockhash(&self) -> Result<Hash>;
     async fn send_and_confirm_transaction(
@@ -70,6 +76,20 @@ impl JitoClientTrait for JitoClient {
             JitoClient::SurfPool(c) => c.get_account(address).await,
             JitoClient::Rpc(c) => c.get_account(address).await,
             JitoClient::SolanaTestProgram(c) => c.get_account(address).await,
+        }
+    }
+
+    async fn get_program_accounts_with_config(
+        &self,
+        address: &Pubkey,
+        config: RpcProgramAccountsConfig,
+    ) -> Result<Vec<(Pubkey, Account)>> {
+        match self {
+            JitoClient::SurfPool(c) => c.get_program_accounts_with_config(address, config).await,
+            JitoClient::Rpc(c) => c.get_program_accounts_with_config(address, config).await,
+            JitoClient::SolanaTestProgram(c) => {
+                c.get_program_accounts_with_config(address, config).await
+            }
         }
     }
 
@@ -166,7 +186,7 @@ impl JitoClientTrait for JitoClient {
 // Updated helper function
 pub fn surfpool_or_rpc(client_type: &str) -> JitoClient {
     match client_type {
-        "surfpool" => JitoClient::SurfPool(surf_pool::JitoSurfPoolClient::new()),
-        rpc_url => JitoClient::Rpc(rpc::JitoRpcClient::new(rpc_url.to_string())),
+        "surfpool" => surf_pool::JitoSurfPoolClient::new(),
+        rpc_url => rpc::JitoRpcClient::new(rpc_url.to_string()),
     }
 }

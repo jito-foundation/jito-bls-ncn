@@ -1,0 +1,2 @@
+pub const DEFAULT_THRESHOLD_BPS: u16 = 6_666;
+pub const BPS_PER_PERCENT: u16 = 10_000;

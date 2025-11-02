@@ -1,9 +1,9 @@
-use jito_bls_ncn_core::programs::restaking_core::{Ncn, NcnOperatorState};
+use jito_bls_ncn_core::instructions::RegisterVaultIxData;
+use jito_bls_ncn_core::programs::restaking_core::{Ncn, NcnVaultTicket};
+use jito_bls_ncn_core::programs::vault_core::{Vault, VaultNcnTicket};
 use jito_bls_ncn_core::utils::{load_account, load_account_mut, JitoAccount};
 use jito_bls_ncn_core::{
-    accounts::{bls_operator::BlsOperator, config::Config, rolling_snapshot::RollingSnapshot},
-    instructions::RegisterBlsOperatorIxData,
-    programs::restaking_core::Operator,
+    accounts::{config::Config, rolling_snapshot::RollingSnapshot},
     utils::{check_signer, load_ix_data},
 };
 use solana_account_info::AccountInfo;
@@ -12,17 +12,17 @@ use solana_program::{clock::Clock, sysvar::Sysvar};
 use solana_program_error::{ProgramError, ProgramResult};
 use solana_pubkey::Pubkey;
 
-pub fn process_register_bls_operator(
+pub fn process_register_vault(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     data: &[u8],
 ) -> ProgramResult {
-    let [config, rolling_snapshot, bls_operator, restaking_config, ncn, operator, ncn_operator_state, admin] =
+    let [config, rolling_snapshot, restaking_config, ncn, vault, ncn_vault_ticket, vault_ncn_ticket, admin] =
         accounts
     else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
-    let _ = unsafe { load_ix_data::<RegisterBlsOperatorIxData>(data)? };
+    let ix_data = unsafe { load_ix_data::<RegisterVaultIxData>(data)? };
 
     check_signer(admin, false)?;
 
@@ -68,68 +68,75 @@ pub fn process_register_bls_operator(
             return Err(ProgramError::InvalidArgument);
         }
 
-        BlsOperator::check(program_id, bls_operator, false)?;
-        let bls_operator_data = bls_operator.try_borrow_data()?;
-        let bls_operator_account = unsafe { load_account::<BlsOperator>(&bls_operator_data)? };
-        if bls_operator_account.operator.ne(operator.key) {
-            msg!("Operator does not match - BlsOperator");
-            return Err(ProgramError::InvalidArgument);
-        }
-
         Ncn::check(
             &jito_bls_ncn_core::programs::restaking_core::id(),
             ncn,
             false,
         )?;
-        Operator::check(
+        Vault::check(&jito_bls_ncn_core::programs::vault_core::id(), vault, false)?;
+
+        VaultNcnTicket::check(
+            &jito_bls_ncn_core::programs::vault_core::id(),
+            vault_ncn_ticket,
+            false,
+        )?;
+        let vault_ncn_ticket_data = vault_ncn_ticket.try_borrow_data()?;
+        let vault_ncn_ticket_account =
+            unsafe { load_account::<VaultNcnTicket>(&vault_ncn_ticket_data)? };
+
+        if vault_ncn_ticket_account.ncn.ne(ncn.key) {
+            msg!("NCN does not match - VaultNcnTicket");
+            return Err(ProgramError::InvalidArgument);
+        }
+        if vault_ncn_ticket_account.vault.ne(vault.key) {
+            msg!("Vault does not match - VaultNcnTicket");
+            return Err(ProgramError::InvalidArgument);
+        }
+        if !vault_ncn_ticket_account
+            .state
+            .is_active(current_slot, epoch_length)?
+        {
+            msg!("VaultNCNTicket is not active");
+            return Err(ProgramError::InvalidArgument);
+        }
+
+        NcnVaultTicket::check(
             &jito_bls_ncn_core::programs::restaking_core::id(),
-            operator,
+            ncn_vault_ticket,
             false,
         )?;
 
-        NcnOperatorState::check(
-            &jito_bls_ncn_core::programs::restaking_core::id(),
-            ncn_operator_state,
-            false,
-        )?;
-        let ncn_operator_state_data = ncn_operator_state.try_borrow_data()?;
-        let ncn_operator_state_account =
-            unsafe { load_account::<NcnOperatorState>(&ncn_operator_state_data)? };
-
-        if ncn_operator_state_account.ncn.ne(ncn.key) {
-            msg!("NCN does not match - NcnOperatorState");
+        let ncn_vault_ticket_data = ncn_vault_ticket.try_borrow_data()?;
+        let ncn_vault_ticket_account =
+            unsafe { load_account::<NcnVaultTicket>(&ncn_vault_ticket_data)? };
+        if ncn_vault_ticket_account.ncn.ne(ncn.key) {
+            msg!("NCN does not match - NcnVaultTicket");
             return Err(ProgramError::InvalidArgument);
         }
-        if ncn_operator_state_account.operator.ne(operator.key) {
-            msg!("Operator does not match - NcnOperatorState");
+        if ncn_vault_ticket_account.vault.ne(vault.key) {
+            msg!("Vault does not match - NcnVaultTicket");
             return Err(ProgramError::InvalidArgument);
         }
-
-        if !ncn_operator_state_account
-            .ncn_opt_in_state
-            .is_active(clock.slot, epoch_length)?
+        if !ncn_vault_ticket_account
+            .state
+            .is_active(current_slot, epoch_length)?
         {
-            msg!("NCN is not opted in");
+            msg!("NcnVaultTicket is not active");
             return Err(ProgramError::InvalidArgument);
         }
-        if !ncn_operator_state_account
-            .operator_opt_in_state
-            .is_active(clock.slot, epoch_length)?
-        {
-            msg!("Operator is not opted in");
-            return Err(ProgramError::InvalidArgument);
-        }
-    };
+    }
 
     {
-        let bls_operator_data = bls_operator.try_borrow_data()?;
-        let bls_operator_account = unsafe { load_account::<BlsOperator>(&bls_operator_data)? };
-
         let mut rolling_snapshot_data = rolling_snapshot.try_borrow_mut_data()?;
         let rolling_snapshot_account =
             unsafe { load_account_mut::<RollingSnapshot>(&mut rolling_snapshot_data)? };
 
-        rolling_snapshot_account.add_operator(current_slot, epoch_length, bls_operator_account)?;
+        rolling_snapshot_account.add_vault(
+            current_slot,
+            epoch_length,
+            vault.key,
+            ix_data.weight_bps.get(),
+        )?;
     }
 
     Ok(())

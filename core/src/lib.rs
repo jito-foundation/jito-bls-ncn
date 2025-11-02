@@ -1,5 +1,6 @@
 pub mod accounts;
 pub mod bls;
+pub mod constants;
 pub mod discriminators;
 pub mod errors;
 pub mod instructions;

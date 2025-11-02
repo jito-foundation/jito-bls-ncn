@@ -22,7 +22,7 @@ mod tests {
         let mut ncn_root = create_test_ncn(&mut client).await?;
         add_operators_to_test_ncn(&mut client, &mut ncn_root, operator_count, None).await?;
         add_vaults_to_test_ncn(&mut client, &mut ncn_root, vault_count, None).await?;
-        add_delegation_in_test_ncn(&mut client, &ncn_root, 1000).await?;
+        add_delegation_in_test_ncn(&mut client, &ncn_root, vec![1000]).await?;
 
         client.test_warp_to_slot_incremental(500_000).await?;
         update_all_vaults_in_test_ncn(&mut client, &ncn_root).await?;

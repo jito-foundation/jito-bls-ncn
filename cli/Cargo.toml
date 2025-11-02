@@ -21,6 +21,7 @@ hex = { workspace = true }
 jito-bls-ncn-clients = { workspace = true }
 jito-bls-ncn-core = { workspace = true }
 jito-bls-ncn-sdk = { workspace = true }
+serde_json = { workspace = true }
 solana-account-decoder = { workspace = true }
 solana-client = { workspace = true }
 solana-keypair = { workspace = true }

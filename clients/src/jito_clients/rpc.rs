@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use log::error;
 use solana_account::Account;
-use solana_client::nonblocking::rpc_client::RpcClient;
+use solana_client::{nonblocking::rpc_client::RpcClient, rpc_config::RpcProgramAccountsConfig};
 use solana_commitment_config::{CommitmentConfig, CommitmentLevel};
 use solana_epoch_info::EpochInfo;
 use solana_keypair::Keypair;
@@ -9,7 +9,7 @@ use solana_pubkey::Pubkey;
 use solana_signature::Signature;
 use solana_transaction::{Hash, Transaction};
 
-use crate::jito_clients::{JitoClientTrait, JitoClientType};
+use crate::jito_clients::{JitoClient, JitoClientTrait, JitoClientType};
 
 // --------------------------- JITO RPC Client -------------------------------
 pub struct JitoRpcClient {
@@ -19,20 +19,21 @@ pub struct JitoRpcClient {
 }
 
 impl JitoRpcClient {
-    pub fn new(rpc_url: String) -> Self {
-        JitoRpcClient {
+    #[allow(clippy::new_ret_no_self)]
+    pub fn new(rpc_url: String) -> JitoClient {
+        JitoClient::Rpc(JitoRpcClient {
             client_type: JitoClientType::RPC,
             rpc_client: RpcClient::new(rpc_url),
             keypair: Keypair::new(),
-        }
+        })
     }
 
-    pub fn new_with_keypair(rpc_url: String, keypair: Keypair) -> Self {
-        JitoRpcClient {
+    pub fn new_with_keypair(rpc_url: String, keypair: Keypair) -> JitoClient {
+        JitoClient::Rpc(JitoRpcClient {
             client_type: JitoClientType::RPC,
             rpc_client: RpcClient::new(rpc_url),
             keypair,
-        }
+        })
     }
 }
 
@@ -50,6 +51,17 @@ impl JitoClientTrait for JitoRpcClient {
             .get_account(address)
             .await
             .map_err(|e| anyhow!("Could not get account for {}: {}", address, e))
+    }
+
+    async fn get_program_accounts_with_config(
+        &self,
+        address: &Pubkey,
+        config: RpcProgramAccountsConfig,
+    ) -> Result<Vec<(Pubkey, Account)>> {
+        self.rpc_client
+            .get_program_accounts_with_config(address, config)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to get program accounts: {}", e))
     }
 
     async fn get_balance(&self, address: &Pubkey) -> Result<u64> {

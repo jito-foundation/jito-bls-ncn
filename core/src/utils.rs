@@ -32,6 +32,7 @@ pub trait JitoAccount {
 
     fn is_initialized(&self) -> bool;
 }
+
 /// # Safety
 /// Caller must ensure everything is 1 byte aligned
 pub unsafe trait JitoIxData {
@@ -61,7 +62,6 @@ pub unsafe fn load_account<T: JitoAccount>(bytes: &[u8]) -> Result<&T, ProgramEr
 #[inline(always)]
 pub unsafe fn load_account_unchecked<T: JitoAccount>(bytes: &[u8]) -> Result<&T, ProgramError> {
     if bytes.len() != T::LEN {
-        msg!("{} {}", bytes.len(), T::LEN);
         return Err(ProgramError::InvalidAccountData);
     }
     Ok(&*(bytes.as_ptr() as *const T))
@@ -126,6 +126,13 @@ pub unsafe fn ix_data_to_bytes<T: JitoIxData>(data: &T) -> &[u8] {
 #[inline(always)]
 pub unsafe fn ix_data_to_mut_bytes<T: JitoIxData>(data: &mut T) -> &mut [u8] {
     core::slice::from_raw_parts_mut(data as *mut T as *mut u8, T::LEN)
+}
+
+#[inline(always)]
+pub fn get_epoch(current_slot: u64, epoch_length: u64) -> Result<u64, ProgramError> {
+    current_slot
+        .checked_div(epoch_length)
+        .ok_or(ProgramError::ArithmeticOverflow)
 }
 
 pub fn check_signer(info: &AccountInfo, expect_writable: bool) -> Result<(), ProgramError> {
@@ -341,14 +348,6 @@ pub fn realloc<'a, 'info>(
     )?;
     account.resize(new_size)?;
     Ok(())
-}
-
-pub fn get_epoch(slot: u64, epoch_length: u64) -> Result<u64, ProgramError> {
-    let epoch = slot
-        .checked_div(epoch_length)
-        .ok_or(ProgramError::ArithmeticOverflow)?;
-
-    Ok(epoch)
 }
 
 /// Calculate new size for reallocation, capped at target size

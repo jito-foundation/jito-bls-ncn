@@ -2703,6 +2703,7 @@ dependencies = [
  "jito-bls-ncn-clients",
  "jito-bls-ncn-core",
  "jito-bls-ncn-sdk",
+ "serde_json",
  "solana-account-decoder",
  "solana-client",
  "solana-keypair",
@@ -2716,6 +2717,7 @@ name = "jito-bls-ncn-clients"
 version = "0.0.1"
 dependencies = [
  "anyhow",
+ "bs58",
  "hex",
  "jito-bls-ncn-core",
  "jito-bls-ncn-sdk",
@@ -2736,7 +2738,6 @@ dependencies = [
  "solana-transaction",
  "spl-associated-token-account-interface",
  "spl-token-interface",
- "tokio",
 ]
 
 [[package]]

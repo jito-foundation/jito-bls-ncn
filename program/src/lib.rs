@@ -6,6 +6,8 @@ pub mod initialize_config;
 pub mod initialize_consensus;
 pub mod initialize_rolling_snapshot;
 pub mod register_bls_operator;
+pub mod register_vault;
+pub mod snapshot;
 pub mod vote;
 
 declare_id!("3Shbx5RwJtmD4EZHu5XmSkqaTxruikKmEU2Qx4BcccU5");
@@ -26,6 +28,8 @@ mod entrypoint {
     use crate::initialize_consensus::process_initialize_consensus;
     use crate::initialize_rolling_snapshot::process_initialize_rolling_snapshot;
     use crate::register_bls_operator::process_register_bls_operator;
+    use crate::register_vault::process_register_vault;
+    use crate::snapshot::process_snapshot;
     use crate::vote::process_vote;
 
     use solana_security_txt::security_txt;
@@ -76,6 +80,14 @@ mod entrypoint {
                 process_register_bls_operator(program_id, accounts, instruction_data)
             }
             JitoBlsNCNInstructions::RemoveBlsOperator => todo!(),
+            JitoBlsNCNInstructions::RegisterVault => {
+                msg!("Registering Vault");
+                process_register_vault(program_id, accounts, instruction_data)
+            }
+            JitoBlsNCNInstructions::Snapshot => {
+                msg!("Snapshot");
+                process_snapshot(program_id, accounts, instruction_data)
+            }
             JitoBlsNCNInstructions::Vote => {
                 msg!("Voting");
                 process_vote(program_id, accounts, instruction_data)

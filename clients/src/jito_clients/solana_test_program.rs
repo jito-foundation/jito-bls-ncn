@@ -1,5 +1,7 @@
 use anyhow::{anyhow, Result};
+use log::error;
 use solana_account::{Account, AccountSharedData, ReadableAccount};
+use solana_client::rpc_config::RpcProgramAccountsConfig;
 use solana_commitment_config::CommitmentLevel;
 use solana_epoch_info::EpochInfo;
 use solana_keypair::Keypair;
@@ -10,7 +12,7 @@ use solana_signature::Signature;
 use solana_system_transaction::transfer;
 use solana_transaction::{Hash, Transaction};
 
-use crate::jito_clients::{JitoClientTrait, JitoClientType};
+use crate::jito_clients::{JitoClient, JitoClientTrait, JitoClientType};
 
 // --------------------------- JITO TEST PROGRAM Client -------------------------------
 pub struct JitoSolanaTestProgramClient {
@@ -19,11 +21,12 @@ pub struct JitoSolanaTestProgramClient {
 }
 
 impl JitoSolanaTestProgramClient {
-    pub fn new(context: ProgramTestContext) -> Self {
-        JitoSolanaTestProgramClient {
+    #[allow(clippy::new_ret_no_self)]
+    pub fn new(context: ProgramTestContext) -> JitoClient {
+        JitoClient::SolanaTestProgram(JitoSolanaTestProgramClient {
             client_type: JitoClientType::SolanaTestProgram,
             context,
-        }
+        })
     }
 }
 
@@ -48,6 +51,15 @@ impl JitoClientTrait for JitoSolanaTestProgramClient {
             Some(account) => Ok(account),
             None => Err(anyhow!("Account not found {}", address)),
         }
+    }
+
+    async fn get_program_accounts_with_config(
+        &self,
+        _: &Pubkey,
+        _: RpcProgramAccountsConfig,
+    ) -> Result<Vec<(Pubkey, Account)>> {
+        error!("Get program accounts with config not supported on Test Program");
+        Err(anyhow!("Get program accounts with config not supported"))
     }
 
     async fn get_balance(&self, address: &Pubkey) -> Result<u64> {
@@ -92,7 +104,7 @@ impl JitoClientTrait for JitoSolanaTestProgramClient {
         let block_height = self.context.banks_client.get_root_block_height().await?;
 
         Ok(EpochInfo {
-            epoch: clock.epoch,
+            epoch: clock.epoch, // This seems to be inconsistent with with `clock.slot / slots_per_epoch`
             slot_index: clock.slot % slots_per_epoch,
             slots_in_epoch: slots_per_epoch,
             absolute_slot: clock.slot,
