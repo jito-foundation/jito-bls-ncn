@@ -16,7 +16,7 @@
 
 - `JitoClient` - A wrapper around solana client-side execution that allows code to be run with `solana-program-test`, `surfpool` or a regular `rpc-client`.
 
-- Everything is a Pod - All data fields for on-chain accounts and ix-data use Pods to keep everything 1 byte aligned. This allows us to stay away from external serialize/deserialize packages.
+- Everything is a Pod - All data fields for on-chain accounts and ix-data use Pods to keep everything 1 byte aligned. This allows us to stay away from external serialize/deserialize packages like bytemuck. This allows us to have "Zero Copy" semantics - we literally just "cast" or "map" the struct onto an array of bytes, like in C, as god intended.
 
 - Everything is handrolled - This continues the theme of AFCAP. All accounts and instructions, at the end of the day, are just bytes. In conjunction with our handrolled Pod implementation, we don't need anything fancy to know what we're doing. This takes up a bit more time on the dev side, but greatly simplifies the codebase. Transparent and fast.
 
