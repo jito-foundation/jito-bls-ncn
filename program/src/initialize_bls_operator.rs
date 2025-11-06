@@ -1,10 +1,10 @@
-use jito_bls_ncn_core::utils::{get_new_realloc_size, load_account, realloc, JitoAccount};
+use jito_bls_ncn_core::utils::{create_or_realloc, load_account, JitoAccount};
 use jito_bls_ncn_core::{
     accounts::bls_operator::BlsOperator,
     instructions::InitializeBlsOperatorIxData,
     programs::restaking_core::Operator,
     utils::{
-        check_signer, check_system_account, check_system_program, create_account,
+        check_signer, check_system_program,
         load_account_mut_unchecked, load_ix_data,
     },
 };
@@ -51,29 +51,15 @@ pub fn process_initialize_bls_operator(
     }
 
     let rent = Rent::get()?;
-    match check_system_account(bls_operator, true) {
-        Ok(()) => {
-            msg!("Creating account");
-            let size = get_new_realloc_size(0, BlsOperator::LEN)?;
-            create_account(
-                payer,
-                bls_operator,
-                system_program,
-                program_id,
-                &rent,
-                size as u64,
-                &seeds,
-            )?;
-        }
-        Err(_) => {
-            if bls_operator.data_len() < BlsOperator::LEN {
-                msg!("Reallocing account");
-                let new_size = get_new_realloc_size(bls_operator.data_len(), BlsOperator::LEN)?;
-
-                realloc(bls_operator, new_size, payer, &rent)?;
-            }
-        }
-    }
+    create_or_realloc(
+        bls_operator,
+        BlsOperator::LEN,
+        payer,
+        system_program,
+        program_id,
+        &seeds,
+        &rent,
+    )?;
 
     let should_initialize = bls_operator.data_len() >= BlsOperator::LEN;
     if should_initialize {

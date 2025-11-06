@@ -16,7 +16,7 @@ commonware = [
     "dep:commonware-codec",
     "dep:commonware-utils",
     "dep:bytes",
-    "dep:bn254",
+    # "dep:bn254",
     "dep:serde_json",
 ]
 
@@ -25,7 +25,7 @@ ark-bn254 = { workspace = true }
 ark-ec = { workspace = true }
 ark-ff = { workspace = true }
 ark-serialize = { workspace = true }
-bn254 = { workspace = true, optional = true }
+# bn254 = { workspace = true, optional = true }
 bytes = { workspace = true, optional = true }
 commonware-codec = { workspace = true, optional = true }
 commonware-cryptography = { workspace = true, optional = true }
