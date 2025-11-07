@@ -139,6 +139,8 @@ pub fn process_snapshot(
             enqueued_for_cooldown,
             cooling_down,
         )?;
+
+        msg!("Took snapshot of Operator ({}/{}) and Vault ({}/{}) with staked {}, enqueued for cooldown {}, cooling down {}", ix_data.operator_index.get(), rolling_snapshot_account.operator_count().saturating_sub(1), ix_data.vault_index.get(), rolling_snapshot_account.vault_count().saturating_sub(1), staked, enqueued_for_cooldown, cooling_down);
     }
 
     Ok(())

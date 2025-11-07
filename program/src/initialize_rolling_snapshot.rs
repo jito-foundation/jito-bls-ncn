@@ -52,6 +52,14 @@ pub fn process_initialize_rolling_snapshot(
         }
 
         account.initialize(ncn.key, bump)?;
+
+        msg!("Initialized Rolling Snapshot at {}", pda);
+    } else {
+        msg!(
+            "Rolling Snapshot is at size {}/{}",
+            rolling_snapshot.data_len(),
+            RollingSnapshot::LEN
+        );
     }
 
     Ok(())

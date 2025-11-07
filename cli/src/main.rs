@@ -6,9 +6,10 @@ use jito_bls_ncn_clients::{
     },
     program_clients::meta_bls_ncn_client::setup_test_bls_ncn,
 };
-use serde_json::json;
+use jito_bls_ncn_core::bls::solana_bls_interface::{
+    SolanaBN254Keypair, TestBlsNcn, TestBlsOperator, TestBlsOrchestrator, TestBlsVault,
+};
 use solana_keypair::Pubkey;
-use std::fs;
 use std::str::FromStr;
 
 #[derive(Parser, Debug)]
@@ -89,40 +90,38 @@ pub async fn create_test_ncn(
     let (ncn, bls_ncn_root) =
         setup_test_bls_ncn(client, operator_count, vault_count, vec![1000]).await?;
 
-    // Build the JSON structure
-    let mut operators_json = Vec::new();
+    // Create test operators
+    let mut test_operators = Vec::new();
     for (i, operator) in bls_ncn_root.test_ncn.operators.iter().enumerate() {
-        let bls_keypair = &bls_ncn_root.operator_bls_keypairs[i];
-
-        operators_json.push(json!({
-            "operator_pubkey": operator.operator_pubkey.to_string(),
-            "bls_keypair": serde_json::from_str::<serde_json::Value>(
-                &bls_keypair.to_json().unwrap()
-            ).map_err(|e| format!("Failed to parse BLS keypair JSON: {:?}", e)).unwrap()
-        }));
+        let bls_keypair = bls_ncn_root.operator_bls_keypairs[i];
+        test_operators.push(TestBlsOperator::new(bls_keypair, operator.operator_pubkey));
     }
 
-    let mut vaults_json = Vec::new();
+    // Create test vaults
+    let mut test_vaults = Vec::new();
     for vault in bls_ncn_root.test_ncn.vaults.iter() {
-        vaults_json.push(json!({
-            "vault_pubkey": vault.vault_pubkey.to_string(),
-        }));
+        test_vaults.push(TestBlsVault::new(vault.vault_pubkey));
     }
 
-    let output = json!({
-        "ncn": ncn.to_string(),
-        "operators": operators_json,
-        "vaults": vaults_json,
-    });
+    // Create orchestrator
+    let orchestrator_bls_keypair =
+        SolanaBN254Keypair::new_unique().map_err(|e| anyhow!("Could not create keypair: {}", e))?;
+    let bls_orchestrator = TestBlsOrchestrator::new(orchestrator_bls_keypair);
+
+    // Create TestBlsStruct
+    let test_bls_struct = TestBlsNcn::new(
+        "http://127.0.0.1:8899".to_string(),
+        client.keypair().insecure_clone(),
+        ncn,
+        bls_orchestrator,
+        test_operators,
+        test_vaults,
+    );
 
     // Write to file
-    let json_str = serde_json::to_string_pretty(&output)
-        .map_err(|e| format!("Failed to serialize JSON: {:?}", e))
-        .unwrap();
-
-    fs::write("test_ncn_output.json", json_str)
-        .map_err(|e| format!("Failed to write to file: {:?}", e))
-        .unwrap();
+    test_bls_struct
+        .to_json_file("test_ncn_output.json")
+        .map_err(|e| anyhow!("Could not write test NCN json file: {}", e))?;
 
     println!("Test NCN data written to test_ncn_output.json");
 

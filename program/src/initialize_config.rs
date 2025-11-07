@@ -68,6 +68,10 @@ pub fn process_initialize_config(
         }
 
         account.initialize(ncn.key, admin.key, bump)?;
+
+        msg!("Initialized Config at {}", pda);
+    } else {
+        msg!("Config is at size {}/{}", config.data_len(), Config::LEN);
     }
 
     Ok(())

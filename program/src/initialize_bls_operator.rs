@@ -3,10 +3,7 @@ use jito_bls_ncn_core::{
     accounts::bls_operator::BlsOperator,
     instructions::InitializeBlsOperatorIxData,
     programs::restaking_core::Operator,
-    utils::{
-        check_signer, check_system_program,
-        load_account_mut_unchecked, load_ix_data,
-    },
+    utils::{check_signer, check_system_program, load_account_mut_unchecked, load_ix_data},
 };
 use solana_account_info::AccountInfo;
 use solana_msg::msg;
@@ -78,6 +75,20 @@ pub fn process_initialize_bls_operator(
                 bump,
             )?;
         }
+
+        msg!(
+            "Initialized BLS Operator at {}, with G1: {:?}, G2: {:?}, Socket: {:?}",
+            pda,
+            ix_data.g1,
+            ix_data.g2,
+            ix_data.socket
+        );
+    } else {
+        msg!(
+            "BLS Operator is at size {}/{}",
+            bls_operator.data_len(),
+            BlsOperator::LEN
+        );
     }
 
     Ok(())

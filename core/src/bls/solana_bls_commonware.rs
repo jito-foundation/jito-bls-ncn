@@ -1,5 +1,4 @@
 use ark_bn254::{Fr as Scalar, G1Affine, G2Affine};
-use ark_ec::AffineRepr;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use commonware_cryptography::{
     PublicKey as CommonwarePublicKey, Signature as CommonwareSignature, Signer, Verifier,
@@ -21,13 +20,6 @@ use crate::bls::{
         SolanaBN254G1, SolanaBN254G2, SolanaBN254Keypair, SolanaBN254Signature,
     },
 };
-
-// const DIGEST_LENGTH: usize = 32;
-// const PRIVATE_KEY_LENGTH: usize = 32;
-// const G1_LENGTH: usize = 32;
-// const SIGNATURE_LENGTH: usize = G1_LENGTH;
-// const G2_LENGTH: usize = 64;
-// const PUBLIC_KEY_LENGTH: usize = G2_LENGTH;
 
 // const DIGEST_LENGTH: usize = 32;
 const PRIVATE_KEY_LENGTH: usize = 32;
@@ -246,9 +238,7 @@ impl Read for SolanaBN254G2 {
     type Cfg = ();
 
     fn read_cfg(buf: &mut impl Buf, _cfg: &()) -> Result<Self, Error> {
-        let mut raw = <[u8; PUBLIC_KEY_LENGTH]>::read_cfg(buf, &())?;
-        let dst: &[u8] = &mut raw;
-        let _ = G2Affine::deserialize_compressed(dst).expect("Wrong Public Key");
+        let raw = <[u8; PUBLIC_KEY_LENGTH]>::read_cfg(buf, &())?;
         let g2 = SolanaBN254G2::new(&raw).expect("Could not create G2");
         Ok(g2)
     }
@@ -293,6 +283,7 @@ impl Deref for SolanaBN254G2 {
     }
 }
 
+//TODO test
 impl From<G2Affine> for SolanaBN254G2 {
     fn from(key: G2Affine) -> Self {
         let mut raw = [0u8; PUBLIC_KEY_LENGTH];
@@ -306,10 +297,6 @@ impl TryFrom<&[u8]> for SolanaBN254G2 {
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         let raw: [u8; PUBLIC_KEY_LENGTH] =
             TryInto::<[u8; PUBLIC_KEY_LENGTH]>::try_into(value).expect("Invalid Public Key Length");
-        let key = G2Affine::deserialize_compressed(value).expect("Invalid Public Key");
-        if !key.is_in_correct_subgroup_assuming_on_curve() || !key.is_on_curve() || key.is_zero() {
-            return Err(Error::InvalidUsize);
-        }
         let g2 = SolanaBN254G2::new(&raw).expect("Could not create G2");
         Ok(g2)
     }
@@ -386,9 +373,7 @@ impl Read for SolanaBN254Signature {
     type Cfg = ();
 
     fn read_cfg(buf: &mut impl Buf, _cfg: &()) -> Result<Self, Error> {
-        let mut raw = <[u8; SIGNATURE_LENGTH]>::read_cfg(buf, &())?;
-        let dst: &[u8] = &mut raw;
-        let _ = G1Affine::deserialize_compressed(dst).expect("Wrong Signature");
+        let raw = <[u8; SIGNATURE_LENGTH]>::read_cfg(buf, &())?;
         let g1 = SolanaBN254G1::new(&raw).expect("Could not create G1");
         Ok(g1)
     }
@@ -430,6 +415,7 @@ impl Deref for SolanaBN254Signature {
     }
 }
 
+// TODO test
 impl From<G1Affine> for SolanaBN254Signature {
     fn from(sig: G1Affine) -> Self {
         let mut raw = [0u8; SIGNATURE_LENGTH];
@@ -443,10 +429,6 @@ impl TryFrom<&[u8]> for SolanaBN254Signature {
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         let raw: [u8; SIGNATURE_LENGTH] =
             TryInto::<[u8; SIGNATURE_LENGTH]>::try_into(value).expect("Invalid Signature Length");
-        let sig = G1Affine::deserialize_compressed(value).expect("Invalid Signature");
-        if !sig.is_in_correct_subgroup_assuming_on_curve() || !sig.is_on_curve() || sig.is_zero() {
-            return Err(Error::InvalidBool);
-        }
         let g1 = SolanaBN254G1::new(&raw).expect("Could not create G1");
         Ok(g1)
     }
@@ -477,5 +459,3 @@ impl Display for SolanaBN254Signature {
         write!(f, "{}", hex(&self.raw))
     }
 }
-
-// TODO Tests

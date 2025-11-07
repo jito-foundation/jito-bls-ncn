@@ -130,6 +130,12 @@ pub fn process_register_bls_operator(
             unsafe { load_account_mut::<RollingSnapshot>(&mut rolling_snapshot_data)? };
 
         rolling_snapshot_account.add_operator(current_slot, epoch_length, bls_operator_account)?;
+
+        msg!(
+            "Registered BLS Operator #{}, new aggregated G1: {:?}",
+            rolling_snapshot_account.operator_count(),
+            rolling_snapshot_account.aggregate_g1
+        );
     }
 
     Ok(())

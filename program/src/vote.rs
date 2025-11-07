@@ -177,7 +177,12 @@ pub fn process_vote(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) 
         let account = unsafe { load_account_mut_unchecked::<Consensus>(&mut account_data) }?;
 
         account.increment_consensus_count()?;
-        msg!("Came to consensus {} times!", account.consensus_count())
+        msg!("Came to consensus on {:?} with {}/{} operators and {}/{} stake. Total consensus count: {}", ix_data.message, signer_count, rolling_snapshot_account.operator_count(), weight_tally, rolling_snapshot_account.total_security(current_slot, epoch_length)?, account.consensus_count());
+        msg!(
+            "Settings: Consensus Threshold: {:?}, Consensus Weight Threshold: {:?}",
+            rolling_snapshot_account.consensus_threshold_bps.as_ref(),
+            rolling_snapshot_account.consensus_weight_threshold.as_ref()
+        );
     }
 
     Ok(())

@@ -58,6 +58,14 @@ pub fn process_initialize_consensus(
         }
 
         account.initialize(ncn.key, bump)?;
+
+        msg!("Initialized Consensus at {}", pda);
+    } else {
+        msg!(
+            "Consensus is at size {}/{}",
+            consensus.data_len(),
+            Consensus::LEN
+        );
     }
 
     Ok(())

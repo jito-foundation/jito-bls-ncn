@@ -137,6 +137,12 @@ pub fn process_register_vault(
             vault.key,
             ix_data.weight_bps.get(),
         )?;
+
+        msg!(
+            "Registered Vault #{}, with weight {}",
+            rolling_snapshot_account.vault_count(),
+            ix_data.weight_bps.get()
+        );
     }
 
     Ok(())
