@@ -13,20 +13,30 @@ readme = { workspace = true }
 crate-type = ["cdylib", "lib"]
 name = "jito_bls_ncn_program"
 
+# Do we need these?
 [features]
+default = []
+custom-heap = []
+custom-panic = []
+cpi = ["no-entrypoint"]
 no-entrypoint = []
 no-idl = []
 no-log-ix-name = []
-cpi = ["no-entrypoint"]
-default = []
-mainnet-beta = []
-testnet = []
 devnet = []
+testnet = []
+mainnet-beta = []
 localhost = []
 
 [dependencies]
-solana-pubkey = { workspace = true }
+jito-bls-ncn-core = { path = "../core" }
+solana-account-info = { workspace = true }
+solana-msg = { workspace = true }
 solana-program = { workspace = true }
+solana-program-entrypoint = { workspace = true }
+solana-program-error = { workspace = true }
+solana-pubkey = { workspace = true }
 solana-security-txt = { workspace = true }
 
-[dev-dependencies]
+# This is because of the bls
+[target.'cfg(target_os = "solana")'.dependencies]
+getrandom = { version = "0.2", features = ["custom"] }

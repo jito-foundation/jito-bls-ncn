@@ -1,1 +1,4 @@
-/target
+/target/*
+!/target/deploy/
+.surfpool
+*test_ncn_output.json

@@ -1,31 +1,311 @@
-use shank::ShankInstruction;
+use crate::{
+    errors::BlsNcnProgramError,
+    pod::{PodU16, PodU64},
+    utils::JitoIxData,
+};
 
-#[rustfmt::skip]
-#[derive(Debug, ShankInstruction)]
+#[repr(u64)]
 pub enum JitoBlsNCNInstructions {
+    InitializeConfig = 0x01,
+    InitializeConsensus = 0x02,
+    InitializeRollingSnapshot = 0x03,
+    InitializeBlsOperator = 0x04,
 
-    // ---------------------------------------------------- //
-    //                         GLOBAL                       //
-    // ---------------------------------------------------- //
-    /// Initialize the config account for the NCN program
-    /// Sets up the basic program parameters
-    #[account(0, writable, name = "config")]
-    #[account(1, name = "ncn")]
-    #[account(2, name = "ncn_fee_wallet")]
-    #[account(3, signer, name = "ncn_admin")]
-    #[account(4, name = "tie_breaker_admin")]
-    #[account(5, writable, name = "account_payer")]
-    #[account(6, name = "system_program")]
-    InitializeConfig {
-        /// Number of epochs before voting is considered stalled
-        epochs_before_stall: u64,
-        /// Number of epochs after consensus before accounts can be closed
-        epochs_after_consensus_before_close: u64,
-        /// Number of slots after consensus where voting is still valid
-        valid_slots_after_consensus: u64,
-        /// Minimum stake for a validator to be considered valid
-        minimum_stake: u128,
-        /// NCN fee basis points (bps) for the NCN program
-        ncn_fee_bps: u16,
-    },
+    RegisterBlsOperator = 0x10,
+    RemoveBlsOperator = 0x11,
+    RegisterVault = 0x12,
+
+    Snapshot = 0x20,
+
+    Vote = 0x30,
+}
+
+const _: () = assert!(JitoBlsNCNInstructions::InitializeConfig as u8 != 0);
+const _: () = assert!(JitoBlsNCNInstructions::InitializeConsensus as u8 != 0);
+const _: () = assert!(JitoBlsNCNInstructions::InitializeRollingSnapshot as u8 != 0);
+const _: () = assert!(JitoBlsNCNInstructions::InitializeBlsOperator as u8 != 0);
+const _: () = assert!(JitoBlsNCNInstructions::RegisterBlsOperator as u8 != 0);
+const _: () = assert!(JitoBlsNCNInstructions::RemoveBlsOperator as u8 != 0);
+const _: () = assert!(JitoBlsNCNInstructions::RegisterVault as u8 != 0);
+const _: () = assert!(JitoBlsNCNInstructions::Snapshot as u8 != 0);
+const _: () = assert!(JitoBlsNCNInstructions::Vote as u8 != 0);
+
+impl TryFrom<u64> for JitoBlsNCNInstructions {
+    type Error = BlsNcnProgramError;
+
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        match value {
+            0x01 => Ok(JitoBlsNCNInstructions::InitializeConfig),
+            0x02 => Ok(JitoBlsNCNInstructions::InitializeConsensus),
+            0x03 => Ok(JitoBlsNCNInstructions::InitializeRollingSnapshot),
+            0x04 => Ok(JitoBlsNCNInstructions::InitializeBlsOperator),
+            0x05 => Ok(JitoBlsNCNInstructions::RegisterVault),
+            0x10 => Ok(JitoBlsNCNInstructions::RegisterBlsOperator),
+            0x11 => Ok(JitoBlsNCNInstructions::RemoveBlsOperator),
+            0x12 => Ok(JitoBlsNCNInstructions::RegisterVault),
+            0x20 => Ok(JitoBlsNCNInstructions::Snapshot),
+            0x30 => Ok(JitoBlsNCNInstructions::Vote),
+            _ => Err(BlsNcnProgramError::InvalidInstruction),
+        }
+    }
+}
+
+// -------------------- INITIALIZE CONFIG ---------------
+
+/// [config, ncn, admin, payer, system_program]
+#[repr(C, packed)]
+pub struct InitializeConfigIxData {
+    pub discriminator: PodU64,
+    pub bump: u8,
+}
+
+/// # Safety
+/// Caller must ensure everything is 1 byte aligned
+unsafe impl JitoIxData for InitializeConfigIxData {
+    const DISCRIMINATOR: u64 = JitoBlsNCNInstructions::InitializeConfig as u64;
+    const LEN: usize = size_of::<Self>();
+
+    /// # Safety
+    /// Caller must ensure everything is 1 byte aligned
+    unsafe fn to_bytes(&self) -> &[u8] {
+        unsafe { crate::utils::ix_data_to_bytes::<Self>(self) }
+    }
+}
+
+impl InitializeConfigIxData {
+    pub fn new(bump: u8) -> Self {
+        Self {
+            discriminator: PodU64::from(Self::DISCRIMINATOR),
+            bump,
+        }
+    }
+}
+
+// -------------------- INITIALIZE CONSENSUS ---------------
+
+/// [config, ncn, admin, payer, system_program]
+#[repr(C, packed)]
+pub struct InitializeConsensusIxData {
+    pub discriminator: PodU64,
+    pub bump: u8,
+}
+
+/// # Safety
+/// Caller must ensure everything is 1 byte aligned
+unsafe impl JitoIxData for InitializeConsensusIxData {
+    const DISCRIMINATOR: u64 = JitoBlsNCNInstructions::InitializeConsensus as u64;
+    const LEN: usize = size_of::<Self>();
+
+    /// # Safety
+    /// Caller must ensure everything is 1 byte aligned
+    unsafe fn to_bytes(&self) -> &[u8] {
+        unsafe { crate::utils::ix_data_to_bytes::<Self>(self) }
+    }
+}
+
+impl InitializeConsensusIxData {
+    pub fn new(bump: u8) -> Self {
+        Self {
+            discriminator: PodU64::from(Self::DISCRIMINATOR),
+            bump,
+        }
+    }
+}
+
+// -------------------- INITIALIZE ROLLING SNAPSHOT ---------------
+
+/// [rolling_snapshot, ncn, payer, system_program]
+#[repr(C, packed)]
+pub struct InitializeRollingSnapshotIxData {
+    pub discriminator: PodU64,
+    pub bump: u8,
+}
+
+/// # Safety
+/// Caller must ensure everything is 1 byte aligned
+unsafe impl JitoIxData for InitializeRollingSnapshotIxData {
+    const DISCRIMINATOR: u64 = JitoBlsNCNInstructions::InitializeRollingSnapshot as u64;
+    const LEN: usize = size_of::<Self>();
+
+    /// # Safety
+    /// Caller must ensure everything is 1 byte aligned
+    unsafe fn to_bytes(&self) -> &[u8] {
+        unsafe { crate::utils::ix_data_to_bytes::<Self>(self) }
+    }
+}
+
+impl InitializeRollingSnapshotIxData {
+    pub fn new(bump: u8) -> Self {
+        Self {
+            discriminator: PodU64::from(Self::DISCRIMINATOR),
+            bump,
+        }
+    }
+}
+
+// -------------------- INITIALIZE BLS OPERATOR ---------------
+/// [bls_operator, operator, admin, payer, system_program]
+#[repr(C, packed)]
+pub struct InitializeBlsOperatorIxData {
+    pub discriminator: PodU64,
+    pub bump: u8,
+    pub g1: [u8; 64],
+    pub g2: [u8; 128],
+    pub socket: [u8; 128],
+}
+
+/// # Safety
+/// Caller must ensure everything is 1 byte aligned
+unsafe impl JitoIxData for InitializeBlsOperatorIxData {
+    const DISCRIMINATOR: u64 = JitoBlsNCNInstructions::InitializeBlsOperator as u64;
+    const LEN: usize = size_of::<Self>();
+
+    /// # Safety
+    /// Caller must ensure everything is 1 byte aligned
+    unsafe fn to_bytes(&self) -> &[u8] {
+        unsafe { crate::utils::ix_data_to_bytes::<Self>(self) }
+    }
+}
+
+impl InitializeBlsOperatorIxData {
+    pub fn new(bump: u8, g1: [u8; 64], g2: [u8; 128], socket: [u8; 128]) -> Self {
+        Self {
+            discriminator: PodU64::from(Self::DISCRIMINATOR),
+            bump,
+            g1,
+            g2,
+            socket,
+        }
+    }
+}
+
+// -------------------- REGISTER BLS OPERATOR  -----------------------------
+
+#[repr(C, packed)]
+pub struct RegisterBlsOperatorIxData {
+    pub discriminator: PodU64,
+}
+
+/// # Safety
+/// Caller must ensure everything is 1 byte aligned
+unsafe impl JitoIxData for RegisterBlsOperatorIxData {
+    const DISCRIMINATOR: u64 = JitoBlsNCNInstructions::RegisterBlsOperator as u64;
+    const LEN: usize = size_of::<Self>();
+
+    unsafe fn to_bytes(&self) -> &[u8] {
+        unsafe { crate::utils::ix_data_to_bytes::<Self>(self) }
+    }
+}
+
+impl Default for RegisterBlsOperatorIxData {
+    fn default() -> Self {
+        Self {
+            discriminator: PodU64::from(Self::DISCRIMINATOR),
+        }
+    }
+}
+
+impl RegisterBlsOperatorIxData {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+// -------------------- REGISTER VAULT -----------------------------
+
+#[repr(C, packed)]
+pub struct RegisterVaultIxData {
+    pub discriminator: PodU64,
+    pub weight_bps: PodU16,
+}
+
+/// # Safety
+/// Caller must ensure everything is 1 byte aligned
+unsafe impl JitoIxData for RegisterVaultIxData {
+    const DISCRIMINATOR: u64 = JitoBlsNCNInstructions::RegisterVault as u64;
+    const LEN: usize = size_of::<Self>();
+
+    unsafe fn to_bytes(&self) -> &[u8] {
+        unsafe { crate::utils::ix_data_to_bytes::<Self>(self) }
+    }
+}
+
+impl RegisterVaultIxData {
+    pub fn new(weight_bps: u16) -> Self {
+        Self {
+            discriminator: PodU64::from(Self::DISCRIMINATOR),
+            weight_bps: PodU16::from(weight_bps),
+        }
+    }
+}
+
+// -------------------- SNAPSHOT -----------------------------
+
+#[repr(C, packed)]
+pub struct SnapshotIxData {
+    pub discriminator: PodU64,
+    pub operator_index: PodU16,
+    pub vault_index: PodU16,
+}
+
+/// # Safety
+/// Caller must ensure everything is 1 byte aligned
+unsafe impl JitoIxData for SnapshotIxData {
+    const DISCRIMINATOR: u64 = JitoBlsNCNInstructions::Snapshot as u64;
+    const LEN: usize = size_of::<Self>();
+
+    unsafe fn to_bytes(&self) -> &[u8] {
+        unsafe { crate::utils::ix_data_to_bytes::<Self>(self) }
+    }
+}
+
+impl SnapshotIxData {
+    pub fn new(operator_index: usize, vault_index: usize) -> Self {
+        Self {
+            discriminator: PodU64::from(Self::DISCRIMINATOR),
+            operator_index: PodU16::from(operator_index as u16),
+            vault_index: PodU16::from(vault_index as u16),
+        }
+    }
+}
+
+// -------------------- VOTE -----------------------------
+#[repr(C, packed)]
+pub struct VoteIxData {
+    pub discriminator: PodU64,
+    pub aggregated_g1_signature: [u8; 64],
+    pub aggregated_g2_signed: [u8; 128],
+    pub operators_bitmap_signed: [u8; 32],
+    pub message: [u8; 32],
+    pub consensus_count: PodU64,
+}
+
+/// # Safety
+/// Caller must ensure everything is 1 byte aligned
+unsafe impl JitoIxData for VoteIxData {
+    const DISCRIMINATOR: u64 = JitoBlsNCNInstructions::Vote as u64;
+    const LEN: usize = size_of::<Self>();
+
+    unsafe fn to_bytes(&self) -> &[u8] {
+        unsafe { crate::utils::ix_data_to_bytes::<Self>(self) }
+    }
+}
+
+impl VoteIxData {
+    pub fn new(
+        aggregated_g1_signature: [u8; 64],
+        aggregated_g2_signed: [u8; 128],
+        operators_bitmap_signed: [u8; 32],
+        raw_message: [u8; 32],
+        consensus_count: u64,
+    ) -> Self {
+        Self {
+            discriminator: PodU64::from(Self::DISCRIMINATOR),
+            aggregated_g1_signature,
+            aggregated_g2_signed,
+            operators_bitmap_signed,
+            message: raw_message,
+            consensus_count: PodU64::from(consensus_count),
+        }
+    }
 }

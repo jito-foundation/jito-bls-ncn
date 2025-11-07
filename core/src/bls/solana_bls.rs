@@ -82,9 +82,12 @@
 //! - No G2 arithmetic on-chain: Requires off-chain aggregation of G2 keys
 //! - Point validation: G2 points must be validated off-chain before submission
 use ark_bn254::{Fq, Fq2, Fr, G1Projective, G2Affine};
-use ark_ec::{CurveGroup, AffineRepr};
-use ark_ff::{BigInteger, Field, PrimeField, One};
-use solana_bn254::prelude::*;
+use ark_ec::{AffineRepr, CurveGroup};
+use ark_ff::{BigInteger, Field, One, PrimeField};
+use solana_bn254::{
+    compression::prelude::alt_bn128_g1_decompress,
+    prelude::{alt_bn128_g1_addition_be, alt_bn128_g1_multiplication_be, alt_bn128_pairing_be},
+};
 
 // ----------------------------------------------------------------------------
 //                       CONSTANTS
@@ -129,6 +132,13 @@ pub const G2_MINUS_ONE: [u8; 128] = [
 pub const BN128_PAIRING_SUCCESS_RESULT: [u8; 32] = [
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+];
+
+/// The last multiple of the modulus before 2^256
+/// 0xf1f5883e65f820d099915c908786b9d3f58714d70a38f4c22ca2bc723a70f263
+const NORMALIZE_MODULUS_BYTES: [u8; 32] = [
+    0xf1, 0xf5, 0x88, 0x3e, 0x65, 0xf8, 0x20, 0xd0, 0x99, 0x91, 0x5c, 0x90, 0x87, 0x86, 0xb9, 0xd3,
+    0xf5, 0x87, 0x14, 0xd7, 0x0a, 0x38, 0xf4, 0xc2, 0x2c, 0xa2, 0xbc, 0x72, 0x3a, 0x70, 0xf2, 0x63,
 ];
 
 // ----------------------------------------------------------------------------
@@ -198,76 +208,72 @@ pub fn solana_hash(data: &[u8]) -> [u8; 32] {
 /// # Security
 /// - Deterministic: Same inputs always produce same output
 /// - Domain separation prevents cross-protocol replay attacks
-pub fn solana_hash_to_curve(message: &[u8], domain: Option<&[u8]>) -> Result<[u8; 64], String> {
-    let hasher_input = match domain {
-        Some(domain) => union_unique(message, domain),
-        None => message.to_vec(),
-    };
-    let hash = solana_hash(&hasher_input);
-    solana_map_to_curve(&hash)
+pub fn solana_hash_to_curve(message: &[u8], consensus_count: u64) -> Result<[u8; 64], String> {
+    let hash = solana_hash(message);
+    alt_solana_map_to_curve_simple(&hash, consensus_count)
 }
 
-/// Concatenate domain and message with varint-encoded length prefix
-///
-/// Creates a unique byte sequence for each (domain, message) pair by prepending
-/// the domain with its length encoded as a varint. This ensures no collisions
-/// between different domain/message combinations.
-///
-/// # Arguments
-/// * `message` - The message bytes
-/// * `domain` - The domain separator bytes
-///
-/// # Returns
-/// * `Vec<u8>` - Concatenation: varint(domain.len()) || domain || message
-///
-/// # Format
-/// - First bytes: Domain length as varint (1-10 bytes depending on size)
-/// - Next bytes: Domain bytes
-/// - Final bytes: Message bytes
-///
-/// # Example
-/// ```
-/// let result = union_unique(b"hello", b"DOMAIN");
-/// // result = [0x06, b'D', b'O', b'M', b'A', b'I', b'N', b'h', b'e', b'l', b'l', b'o']
-/// //           ^len=6
-/// ```
-///
-/// # Note
-/// Adapted from commonware's implementation for compatibility.
-pub fn union_unique(message: &[u8], domain: &[u8]) -> Vec<u8> {
-    let namespace_len = domain.len();
+// /// Concatenate domain and message with varint-encoded length prefix
+// ///
+// /// Creates a unique byte sequence for each (domain, message) pair by prepending
+// /// the domain with its length encoded as a varint. This ensures no collisions
+// /// between different domain/message combinations.
+// ///
+// /// # Arguments
+// /// * `message` - The message bytes
+// /// * `domain` - The domain separator bytes
+// ///
+// /// # Returns
+// /// * `Vec<u8>` - Concatenation: varint(domain.len()) || domain || message
+// ///
+// /// # Format
+// /// - First bytes: Domain length as varint (1-10 bytes depending on size)
+// /// - Next bytes: Domain bytes
+// /// - Final bytes: Message bytes
+// ///
+// /// # Example
+// /// ```
+// /// let result = union_unique(b"hello", b"DOMAIN");
+// /// // result = [0x06, b'D', b'O', b'M', b'A', b'I', b'N', b'h', b'e', b'l', b'l', b'o']
+// /// //           ^len=6
+// /// ```
+// ///
+// /// # Note
+// /// Adapted from commonware's implementation for compatibility.
+// pub fn union_unique(message: &[u8], domain: &[u8]) -> Vec<u8> {
+//     let namespace_len = domain.len();
 
-    // Calculate total size needed
-    let mut varint_size = 1;
-    let mut temp = namespace_len;
-    while temp >= 0x80 {
-        varint_size += 1;
-        temp >>= 7;
-    }
+//     // Calculate total size needed
+//     let mut varint_size = 1;
+//     let mut temp = namespace_len;
+//     while temp >= 0x80 {
+//         varint_size += 1;
+//         temp >>= 7;
+//     }
 
-    // Allocate result vector with exact capacity
-    let mut result = Vec::with_capacity(varint_size + namespace_len + message.len());
+//     // Allocate result vector with exact capacity
+//     let mut result = Vec::with_capacity(varint_size + namespace_len + message.len());
 
-    // Encode namespace length as varint
-    let mut value = namespace_len;
-    if value == 0 {
-        result.push(0);
-    } else {
-        // Encode bytes with continuation bit
-        while value >= 0x80 {
-            result.push((value as u8 & 0x7F) | 0x80);
-            value >>= 7;
-        }
-        // Last byte (no continuation bit)
-        result.push(value as u8);
-    }
+//     // Encode namespace length as varint
+//     let mut value = namespace_len;
+//     if value == 0 {
+//         result.push(0);
+//     } else {
+//         // Encode bytes with continuation bit
+//         while value >= 0x80 {
+//             result.push((value as u8 & 0x7F) | 0x80);
+//             value >>= 7;
+//         }
+//         // Last byte (no continuation bit)
+//         result.push(value as u8);
+//     }
 
-    // Append namespace and message
-    result.extend_from_slice(domain);
-    result.extend_from_slice(message);
+//     // Append namespace and message
+//     result.extend_from_slice(domain);
+//     result.extend_from_slice(message);
 
-    result
-}
+//     result
+// }
 
 /// Map a 32-byte hash to a valid point on the BN254 G1 curve
 ///
@@ -295,7 +301,7 @@ pub fn union_unique(message: &[u8], domain: &[u8]) -> Vec<u8> {
 ///
 /// # Reference
 /// https://github.com/Layr-Labs/eigenlayer-middleware/blob/1feb6ae7e12f33ce8eefb361edb69ee26c118b5d/src/libraries/BN254.sol#L292
-fn solana_map_to_curve(bytes: &[u8; 32]) -> Result<[u8; 64], String> {
+fn _solana_map_to_curve(bytes: &[u8; 32]) -> Result<[u8; 64], String> {
     let one = Fq::one();
     let three = Fq::from(3u64);
     let mut x = Fq::from_be_bytes_mod_order(bytes);
@@ -331,6 +337,94 @@ fn solana_map_to_curve(bytes: &[u8; 32]) -> Result<[u8; 64], String> {
     }
 }
 
+/// Map a 32-byte message to a valid point on the BN254 G1 curve using hash-and-increment
+///
+/// Implements a hash-then-try-and-increment algorithm that avoids modulo bias by
+/// rejecting hash outputs >= field modulus before reduction. Uses Solana's native
+/// alt_bn128_g1_decompress syscall for efficient point recovery.
+///
+/// # Arguments
+/// * `bytes` - 32-byte message to hash (typically a domain-separated message)
+///
+/// # Returns
+/// * `Ok([u8; 64])` - Valid G1 point (X || Y) in big-endian
+/// * `Err(String)` - Only if all 255 counter values fail (extremely unlikely)
+///
+/// # Algorithm
+/// 1. hash = SHA256(message || counter) where counter ∈ [0, 255)
+/// 2. If hash >= field_modulus (as integers), skip to avoid modulo bias
+/// 3. x = hash mod p (field reduction)
+/// 4. Try to decompress x to (x, y) using alt_bn128_g1_decompress
+/// 5. If successful, return point; otherwise increment counter and repeat
+///
+/// # Differences from `_solana_map_to_curve`
+/// - Hashes with counter instead of incrementing field element directly
+/// - Uses Solana syscall (alt_bn128_g1_decompress) instead of arkworks sqrt
+/// - Normalizes hash values to avoid modulo bias in hash-to-field mapping
+/// - More compute-efficient on Solana due to native syscall usage
+///
+/// # Security
+/// - Deterministic: Same input always produces same output
+/// - Uniform distribution: Normalization prevents modulo bias
+/// - Not constant-time: Acceptable for verification, not for key generation
+/// - Typically finds valid point within first few iterations (~50% success per try)
+///
+/// # Compute Units
+/// Approximately 1,000-3,000 CU depending on number of iterations needed
+pub fn alt_solana_map_to_curve_simple(
+    hashed_message: &[u8; 32],
+    consensus_count: u64,
+) -> Result<[u8; 64], String> {
+    fn ge_be(a: &[u8; 32], b: &[u8; 32]) -> bool {
+        for i in 0..32 {
+            if a[i] != b[i] {
+                return a[i] > b[i]; // lexicographic BE compare
+            }
+        }
+        true
+    }
+
+    // DO NOT reduce NORMALIZE_MODULUS_BYTES into Fq
+    const MOD_NORM_BE: [u8; 32] = NORMALIZE_MODULUS_BYTES;
+
+    for counter in 0u8..u8::MAX {
+        // hashed_message || consensus_count || counter(u8) — matches your current concatenation
+        let consensus_bytes = consensus_count.to_le_bytes();
+        let hash_input = [
+            hashed_message.as_slice(),
+            consensus_bytes.as_slice(),
+            &[counter],
+        ]
+        .concat();
+        let hash = solana_hash(&hash_input); // 32 bytes, SHA-256 on Solana
+
+        // 1) Normalization check in integer space (avoid modulo bias)
+        let hash_be: [u8; 32] = hash; // already 32 bytes
+        if ge_be(&hash_be, &MOD_NORM_BE) {
+            continue;
+        }
+
+        // 2) Now map into the field (this does the mod p reduction)
+        let x_fq = Fq::from_be_bytes_mod_order(&hash_be);
+
+        // 3) Get canonical 32-byte big-endian encoding of the field element
+        let mut x_bytes = [0u8; 32];
+        x_bytes.copy_from_slice(&x_fq.into_bigint().to_bytes_be());
+
+        // 4) Try to decompress (alt_bn128_g1_decompress expects 32-byte X)
+        match alt_bn128_g1_decompress(&x_bytes) {
+            Ok(point) if point.len() == 64 => {
+                let mut out = [0u8; 64];
+                out.copy_from_slice(&point);
+                return Ok(out);
+            }
+            _ => continue,
+        }
+    }
+
+    Err("Failed to find valid curve point after 1_000_000 attempts".to_string())
+}
+
 // ----------------------------------------------------------------------------
 //                       SIGNING
 // ----------------------------------------------------------------------------
@@ -361,9 +455,13 @@ fn solana_map_to_curve(bytes: &[u8; 32]) -> Result<[u8; 64], String> {
 /// # Warning
 /// NOT constant-time - vulnerable to timing attacks.
 /// Use only in trusted off-chain environments.
-pub fn solana_sign(private_key: &[u8; 32], message: &[u8], domain: Option<&[u8]>) -> Result<[u8; 64], String> {
+pub fn solana_sign(
+    private_key: &[u8; 32],
+    message: &[u8],
+    consensus_count: u64,
+) -> Result<[u8; 64], String> {
     // Hash message to curve point
-    let hash_point = solana_hash_to_curve(message, domain)?;
+    let hash_point = solana_hash_to_curve(message, consensus_count)?;
 
     // Use helper function for scalar multiplication
     mult_g1(&hash_point, private_key)
@@ -425,8 +523,8 @@ pub fn add_g1(p1: &[u8; 64], p2: &[u8; 64]) -> Result<[u8; 64], String> {
     input.extend_from_slice(p1);
     input.extend_from_slice(p2);
 
-    let result = alt_bn128_addition(&input)
-        .map_err(|e| format!("G1 addition failed: {:?}", e))?;
+    let result =
+        alt_bn128_g1_addition_be(&input).map_err(|e| format!("G1 addition failed: {:?}", e))?;
 
     let mut output = [0u8; 64];
     output.copy_from_slice(&result);
@@ -481,7 +579,7 @@ pub fn mult_g1(point: &[u8; 64], scalar: &[u8; 32]) -> Result<[u8; 64], String> 
     input.extend_from_slice(point);
     input.extend_from_slice(scalar);
 
-    let result = alt_bn128_multiplication(&input)
+    let result = alt_bn128_g1_multiplication_be(&input)
         .map_err(|e| format!("G1 multiplication failed: {:?}", e))?;
 
     let mut output = [0u8; 64];
@@ -523,19 +621,24 @@ pub fn mult_g1(point: &[u8; 64], scalar: &[u8; 32]) -> Result<[u8; 64], String> 
 /// # Performance
 /// ~250,000 CU for pairing check using Solana's alt_bn128 precompile
 pub fn solana_verify_aggregated_signature(
-    aggregated_g1: &[u8; 64],    // Aggregated G1 pubkey of signers
-    aggregated_g2: &[u8; 128],           // Pre-computed aggregated G2 of signers
-    aggregated_signature: &[u8; 64],     // Aggregated G1 signature
+    aggregated_g1: &[u8; 64],        // Aggregated G1 pubkey of signers
+    aggregated_g2: &[u8; 128],       // Pre-computed aggregated G2 of signers
+    aggregated_signature: &[u8; 64], // Aggregated G1 signature
     message: &[u8],
-    domain: Option<&[u8]>
+    consensus_count: u64,
 ) -> Result<bool, String> {
     // Hash message to G1 curve point
-    let msg_point = solana_hash_to_curve(message, domain)?;
+    let msg_point = solana_hash_to_curve(message, consensus_count)?;
 
     // Compute alpha for the binding between G1 and G2 representations
     // This creates a cryptographic challenge that ensures the G2 aggregate
     // corresponds to the same operator set as the G1 aggregate
-    let alpha = compute_alpha(&msg_point, aggregated_signature, aggregated_g1, aggregated_g2)?;
+    let alpha = compute_alpha(
+        &msg_point,
+        aggregated_signature,
+        aggregated_g1,
+        aggregated_g2,
+    )?;
 
     // Scale the generators by alpha
     let g1_generator = get_g1_generator(); // Your G1 generator constant
@@ -563,8 +666,8 @@ pub fn solana_verify_aggregated_signature(
     pairing_input.extend_from_slice(&get_g2_minus_one()); // Pre-computed negated G2 generator
 
     // Execute pairing check
-    let result = alt_bn128_pairing(&pairing_input)
-        .map_err(|e| format!("Pairing failed: {:?}", e))?;
+    let result =
+        alt_bn128_pairing_be(&pairing_input).map_err(|e| format!("Pairing failed: {:?}", e))?;
 
     // Check if result equals 1 (successful verification)
     Ok(result == get_bn128_pairing_success_result())
@@ -595,13 +698,13 @@ pub fn solana_verify_aggregated_signature(
 ///     Some(b"DOMAIN")
 /// )?;
 pub fn solana_verify_single_signature(
-    g1: &[u8; 64],    // Aggregated G1 pubkey of signers
-    g2: &[u8; 128],           // Pre-computed aggregated G2 of signers
-    signature: &[u8; 64],     // Aggregated G1 signature
+    g1: &[u8; 64],        // Aggregated G1 pubkey of signers
+    g2: &[u8; 128],       // Pre-computed aggregated G2 of signers
+    signature: &[u8; 64], // Aggregated G1 signature
     message: &[u8],
-    domain: Option<&[u8]>
+    consensus_count: u64,
 ) -> Result<bool, String> {
-    solana_verify_aggregated_signature(g1, g2, signature, message, domain)
+    solana_verify_aggregated_signature(g1, g2, signature, message, consensus_count)
 }
 
 /// Verify a BLS signature using only the G2 public key
@@ -649,10 +752,10 @@ pub fn solana_verify_signature_with_g2(
     g2: &[u8; 128],
     signature: &[u8; 64],
     message: &[u8],
-    domain: Option<&[u8]>
+    consensus_count: u64,
 ) -> Result<bool, String> {
     // Hash message to G1 curve point
-    let message_on_g1 = solana_hash_to_curve(message, domain)
+    let message_on_g1 = solana_hash_to_curve(message, consensus_count)
         .map_err(|e| format!("Failed to hash message to curve: {}", e))?;
 
     // For a single pairing check, we should use the optimized approach
@@ -671,8 +774,8 @@ pub fn solana_verify_signature_with_g2(
     pairing_input[256..384].copy_from_slice(&get_g2_minus_one());
 
     // Execute single pairing check
-    let result = alt_bn128_pairing(&pairing_input)
-        .map_err(|e| format!("Pairing failed: {:?}", e))?;
+    let result =
+        alt_bn128_pairing_be(&pairing_input).map_err(|e| format!("Pairing failed: {:?}", e))?;
 
     // Check if result equals 1 (successful verification)
     Ok(result == get_bn128_pairing_success_result())
@@ -708,10 +811,7 @@ pub fn solana_verify_signature_with_g2(
 /// let valid = verify_g1_g2(&g1_pubkey, &g2_pubkey)?;
 /// assert!(valid, "Keys must be derived from same private key");
 /// ```
-pub fn verify_g1_g2(
-    g1: &[u8; 64],
-    g2: &[u8; 128]
-) -> Result<bool, String> {
+pub fn verify_g1_g2(g1: &[u8; 64], g2: &[u8; 128]) -> Result<bool, String> {
     // Check for zero points (invalid keys)
     let g1_is_zero = g1.iter().all(|&x| x == 0);
     let g2_is_zero = g2.iter().all(|&x| x == 0);
@@ -730,8 +830,8 @@ pub fn verify_g1_g2(
     pairing_input[192..256].copy_from_slice(g1);
     pairing_input[256..].copy_from_slice(&get_g2_minus_one());
 
-    let result = alt_bn128_pairing(&pairing_input)
-        .map_err(|e| format!("Pairing failed: {:?}", e))?;
+    let result =
+        alt_bn128_pairing_be(&pairing_input).map_err(|e| format!("Pairing failed: {:?}", e))?;
 
     // Check if result equals 1 (successful verification)
     Ok(result == get_bn128_pairing_success_result())
@@ -763,7 +863,7 @@ fn compute_alpha(
     message_hash: &[u8; 64],
     signature: &[u8; 64],
     aggregated_g1: &[u8; 64],
-    aggregated_g2: &[u8; 128]
+    aggregated_g2: &[u8; 128],
 ) -> Result<[u8; 32], String> {
     // Concatenate all inputs for hashing
     let mut hasher_input = Vec::new();
@@ -844,7 +944,6 @@ fn get_bn128_pairing_success_result() -> [u8; 32] {
     BN128_PAIRING_SUCCESS_RESULT
 }
 
-
 // ----------------------------------------------------------------------------
 //                       OFFCHAIN
 // ----------------------------------------------------------------------------
@@ -865,7 +964,7 @@ fn get_bn128_pairing_success_result() -> [u8; 32] {
 /// O(n) where n = number of public keys
 /// Each addition ~3,000 CU if using Solana's precompile
 pub fn offchain_aggregate_g1_pubkeys(
-    pubkeys: &[[u8; 64]]  // Uncompressed G1 points
+    pubkeys: &[[u8; 64]], // Uncompressed G1 points
 ) -> Result<[u8; 64], String> {
     if pubkeys.is_empty() {
         return Err("No public keys to aggregate".to_string());
@@ -896,7 +995,7 @@ pub fn offchain_aggregate_g1_pubkeys(
 /// # Note
 /// Uses arkworks for G2 arithmetic since Solana cannot perform these operations
 pub fn offchain_aggregate_g2_pubkeys(
-    pubkeys: &[[u8; 128]]  // Uncompressed G2 points
+    pubkeys: &[[u8; 128]], // Uncompressed G2 points
 ) -> Result<[u8; 128], String> {
     if pubkeys.is_empty() {
         return Err("No public keys to aggregate".to_string());
@@ -932,7 +1031,6 @@ pub fn offchain_aggregate_g2_pubkeys(
 /// 2. Add points using native curve arithmetic
 /// 3. Convert result back to EIP-197 format
 pub fn offchain_add_g2_points(p1: &[u8; 128], p2: &[u8; 128]) -> Result<[u8; 128], String> {
-
     // Parse G2 points from big-endian EIP-197 format
     let g2_1 = offchain_parse_g2_point(p1)?;
     let g2_2 = offchain_parse_g2_point(p2)?;
@@ -961,7 +1059,6 @@ pub fn offchain_add_g2_points(p1: &[u8; 128], p2: &[u8; 128]) -> Result<[u8; 128
 /// - Bytes 64-95: Y.c1 (imaginary part, big-endian)
 /// - Bytes 96-127: Y.c0 (real part, big-endian)
 pub fn offchain_parse_g2_point(bytes: &[u8; 128]) -> Result<G2Affine, String> {
-
     // Extract coordinates (EIP-197: X1, X0, Y1, Y0)
     let x1 = Fq::from_be_bytes_mod_order(&bytes[0..32]);
     let x0 = Fq::from_be_bytes_mod_order(&bytes[32..64]);
@@ -988,7 +1085,6 @@ pub fn offchain_parse_g2_point(bytes: &[u8; 128]) -> Result<G2Affine, String> {
 /// # Format (EIP-197)
 /// Output: X.c1 || X.c0 || Y.c1 || Y.c0 (all big-endian)
 fn offchain_g2_to_bytes(point: &G2Affine) -> Result<[u8; 128], String> {
-
     let mut result = [0u8; 128];
 
     // Get x and y coordinates
@@ -1030,10 +1126,9 @@ fn offchain_g2_to_bytes(point: &G2Affine) -> Result<[u8; 128], String> {
 /// ```
 pub fn offchain_create_operators_bitmap(
     total_operators: usize,
-    signing_indices: &[usize]
-) -> Vec<u8> {
-    let bitmap_size = (total_operators + 7) / 8; // Round up
-    let mut bitmap = vec![0u8; bitmap_size];
+    signing_indices: &[usize],
+) -> [u8; 32] {
+    let mut bitmap = [0u8; 32];
     for &index in signing_indices {
         if index < total_operators {
             let byte_index = index / 8;
@@ -1065,19 +1160,33 @@ pub fn offchain_create_operators_bitmap(
 /// # Important
 /// Arrays must have same length and order must match:
 /// signatures[i] corresponds to pubkeys_g2[i] and signing_indices[i]
+#[allow(clippy::type_complexity)]
 pub fn offchain_prepare_vote_data(
-    signatures: &[[u8; 64]],      // Uncompressed G1 signatures
-    pubkeys_g2: &[[u8; 128]],     // Uncompressed G2 public keys
-    signing_indices: &[usize],     // Which operators signed
+    g1_signatures: &[[u8; 64]],      // Uncompressed G1 signatures
+    g2_signed_pubkeys: &[[u8; 128]], // Uncompressed G2 public keys
+    signing_indices: &[usize],       // Which operators signed
     total_operators: usize,
-) -> Result<([u8; 64], [u8; 128], Vec<u8>), String> {
+) -> Result<([u8; 64], [u8; 128], [u8; 32]), String> {
     // Aggregate and compress signatures
-    let aggregated_signature = aggregate_signatures(signatures)?;
+    let aggregated_signature = aggregate_signatures(g1_signatures)?;
     // Aggregate and compress public keys
-    let aggregated_g2 = offchain_aggregate_g2_pubkeys(pubkeys_g2)?;
+    let aggregated_g2 = offchain_aggregate_g2_pubkeys(g2_signed_pubkeys)?;
     // Create bitmap
     let bitmap = offchain_create_operators_bitmap(total_operators, signing_indices);
     Ok((aggregated_signature, aggregated_g2, bitmap))
+}
+
+#[inline(always)]
+pub fn did_sign_bitmap(bitmap: [u8; 32], index: usize) -> Result<bool, String> {
+    if index >= bitmap.len() * 8 {
+        return Err("Index out of bounds".to_string());
+    }
+
+    let byte_index = index / 8;
+    let bit_index = index % 8;
+    let byte = bitmap[byte_index];
+    let bit = byte & (1 << bit_index);
+    Ok(bit != 0)
 }
 
 /// Derive a G1 public key from a private key (off-chain)
@@ -1131,11 +1240,10 @@ pub fn offchain_g2_from_private_key(private_key: &[u8; 32]) -> Result<[u8; 128],
     Ok(result)
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ark_bn254::{G1Affine, Fr};
+    use ark_bn254::{Fr, G1Affine};
     use ark_ff::PrimeField;
     use hex;
     use solana_keypair::Keypair;
@@ -1174,18 +1282,27 @@ mod tests {
         let private_key2 = generate_random_bls_private_key();
 
         // Use them to generate G1 and G2 public keys
-        let g1_pubkey1 = offchain_g1_from_private_key(&private_key1)
-            .expect("Failed to derive G1 pubkey");
-        let _g2_pubkey1 = offchain_g2_from_private_key(&private_key1)
-            .expect("Failed to derive G2 pubkey");
+        let g1_pubkey1 =
+            offchain_g1_from_private_key(&private_key1).expect("Failed to derive G1 pubkey");
+        let _g2_pubkey1 =
+            offchain_g2_from_private_key(&private_key1).expect("Failed to derive G2 pubkey");
 
         // Ensure different keys produce different public keys
-        let g1_pubkey2 = offchain_g1_from_private_key(&private_key2)
-            .expect("Failed to derive G1 pubkey");
-        assert_ne!(g1_pubkey1, g1_pubkey2, "Different private keys should produce different public keys");
+        let g1_pubkey2 =
+            offchain_g1_from_private_key(&private_key2).expect("Failed to derive G1 pubkey");
+        assert_ne!(
+            g1_pubkey1, g1_pubkey2,
+            "Different private keys should produce different public keys"
+        );
 
-        println!("Generated random private key 1: {}", hex::encode(&private_key1));
-        println!("Generated random private key 2: {}", hex::encode(&private_key2));
+        println!(
+            "Generated random private key 1: {}",
+            hex::encode(private_key1)
+        );
+        println!(
+            "Generated random private key 2: {}",
+            hex::encode(private_key2)
+        );
     }
 
     #[test]
@@ -1231,8 +1348,8 @@ mod tests {
 
     #[test]
     fn test_constants_format() {
-        use {G1Affine, G2Affine};
         use ark_ec::AffineRepr;
+        use {G1Affine, G2Affine};
 
         // Check G1 generator
         let g1_gen = get_g1_generator();
@@ -1242,8 +1359,16 @@ mod tests {
         let ark_g1_x = ark_g1.x.into_bigint().to_bytes_be();
         let ark_g1_y = ark_g1.y.into_bigint().to_bytes_be();
 
-        assert_eq!(&g1_gen[..32], &ark_g1_x, "G1 X coordinate should match arkworks");
-        assert_eq!(&g1_gen[32..], &ark_g1_y, "G1 Y coordinate should match arkworks");
+        assert_eq!(
+            &g1_gen[..32],
+            &ark_g1_x,
+            "G1 X coordinate should match arkworks"
+        );
+        assert_eq!(
+            &g1_gen[32..],
+            &ark_g1_y,
+            "G1 Y coordinate should match arkworks"
+        );
 
         // Check G2 generator
         let g2_gen = get_g2_generator();
@@ -1255,10 +1380,26 @@ mod tests {
         let ark_g2_y_c1 = ark_g2.y.c1.into_bigint().to_bytes_be();
         let ark_g2_y_c0 = ark_g2.y.c0.into_bigint().to_bytes_be();
 
-        assert_eq!(&g2_gen[0..32], &ark_g2_x_c1, "G2 X c1 should match arkworks");
-        assert_eq!(&g2_gen[32..64], &ark_g2_x_c0, "G2 X c0 should match arkworks");
-        assert_eq!(&g2_gen[64..96], &ark_g2_y_c1, "G2 Y c1 should match arkworks");
-        assert_eq!(&g2_gen[96..128], &ark_g2_y_c0, "G2 Y c0 should match arkworks");
+        assert_eq!(
+            &g2_gen[0..32],
+            &ark_g2_x_c1,
+            "G2 X c1 should match arkworks"
+        );
+        assert_eq!(
+            &g2_gen[32..64],
+            &ark_g2_x_c0,
+            "G2 X c0 should match arkworks"
+        );
+        assert_eq!(
+            &g2_gen[64..96],
+            &ark_g2_y_c1,
+            "G2 Y c1 should match arkworks"
+        );
+        assert_eq!(
+            &g2_gen[96..128],
+            &ark_g2_y_c0,
+            "G2 Y c0 should match arkworks"
+        );
 
         // Check G2 minus one
         let g2_minus = get_g2_minus_one();
@@ -1270,21 +1411,40 @@ mod tests {
         let ark_neg_g2_y_c1 = ark_neg_g2.y.c1.into_bigint().to_bytes_be();
         let ark_neg_g2_y_c0 = ark_neg_g2.y.c0.into_bigint().to_bytes_be();
 
-        assert_eq!(&g2_minus[0..32], &ark_neg_g2_x_c1, "Negated G2 X c1 should match arkworks");
-        assert_eq!(&g2_minus[32..64], &ark_neg_g2_x_c0, "Negated G2 X c0 should match arkworks");
-        assert_eq!(&g2_minus[64..96], &ark_neg_g2_y_c1, "Negated G2 Y c1 should match arkworks");
-        assert_eq!(&g2_minus[96..128], &ark_neg_g2_y_c0, "Negated G2 Y c0 should match arkworks");
+        assert_eq!(
+            &g2_minus[0..32],
+            &ark_neg_g2_x_c1,
+            "Negated G2 X c1 should match arkworks"
+        );
+        assert_eq!(
+            &g2_minus[32..64],
+            &ark_neg_g2_x_c0,
+            "Negated G2 X c0 should match arkworks"
+        );
+        assert_eq!(
+            &g2_minus[64..96],
+            &ark_neg_g2_y_c1,
+            "Negated G2 Y c1 should match arkworks"
+        );
+        assert_eq!(
+            &g2_minus[96..128],
+            &ark_neg_g2_y_c0,
+            "Negated G2 Y c0 should match arkworks"
+        );
 
         // Verify the constants are different (Y coordinates should be negated)
-        assert_ne!(&g2_gen[64..], &g2_minus[64..], "Y coordinates should be negated");
-
+        assert_ne!(
+            &g2_gen[64..],
+            &g2_minus[64..],
+            "Y coordinates should be negated"
+        );
     }
 
     #[test]
     fn debug_g2_encoding() {
         let private_key = generate_random_bls_private_key();
-        let g2_pubkey = offchain_g2_from_private_key(&private_key)
-            .expect("Failed to derive G2 pubkey");
+        let g2_pubkey =
+            offchain_g2_from_private_key(&private_key).expect("Failed to derive G2 pubkey");
 
         // Verify it's a valid G2 point using arkworks
         let parsed = offchain_parse_g2_point(&g2_pubkey);
@@ -1296,31 +1456,30 @@ mod tests {
         // Test with a simple private key
         let private_key = generate_random_bls_private_key();
         let message = b"test message";
-        let domain = b"BLS_SIG_BN254";
 
         // Generate signature
-        let signature = solana_sign(&private_key, message, Some(domain)).unwrap();
+        let signature = solana_sign(&private_key, message, 0).unwrap();
         assert_eq!(signature.len(), 64);
 
         // Verify signature is deterministic
-        let signature2 = solana_sign(&private_key, message, Some(domain)).unwrap();
+        let signature2 = solana_sign(&private_key, message, 0).unwrap();
         assert_eq!(signature, signature2);
 
         // Different private key produces different signature
         let private_key2 = generate_random_bls_private_key();
-        let signature3 = solana_sign(&private_key2, message, Some(domain)).unwrap();
+        let signature3 = solana_sign(&private_key2, message, 0).unwrap();
         assert_ne!(signature, signature3);
 
         // Different message produces different signature
-        let signature4 = solana_sign(&private_key, b"different message", Some(domain)).unwrap();
+        let signature4 = solana_sign(&private_key, b"different message", 0).unwrap();
         assert_ne!(signature, signature4);
 
         // Different domain produces different signature
-        let signature5 = solana_sign(&private_key, message, Some(b"DIFFERENT_DOMAIN")).unwrap();
+        let signature5 = solana_sign(&private_key, message, 1).unwrap();
         assert_ne!(signature, signature5);
 
         // No domain produces different signature
-        let signature6 = solana_sign(&private_key, message, None).unwrap();
+        let signature6 = solana_sign(&private_key, message, 2).unwrap();
         assert_ne!(signature, signature6);
 
         // Verify the signature is a valid G1 point
@@ -1332,15 +1491,15 @@ mod tests {
 
         // Test edge case: max private key (just below curve order)
         let max_key = generate_random_bls_private_key();
-        let result = solana_sign(&max_key, message, Some(domain));
+        let result = solana_sign(&max_key, message, 0);
         // This should still work as it gets reduced mod order
         assert!(result.is_ok());
 
         // Verify signatures are different for consecutive private keys
         let key1 = generate_random_bls_private_key();
         let key2 = generate_random_bls_private_key();
-        let sig1 = solana_sign(&key1, message, Some(domain)).unwrap();
-        let sig2 = solana_sign(&key2, message, Some(domain)).unwrap();
+        let sig1 = solana_sign(&key1, message, 0).unwrap();
+        let sig2 = solana_sign(&key2, message, 0).unwrap();
         assert_ne!(sig1, sig2);
     }
 
@@ -1354,10 +1513,10 @@ mod tests {
         let private_key = generate_random_bls_private_key();
 
         // Derive both G1 and G2 public keys from the same private key
-        let g1_pubkey = offchain_g1_from_private_key(&private_key)
-            .expect("Failed to derive G1 pubkey");
-        let g2_pubkey = offchain_g2_from_private_key(&private_key)
-            .expect("Failed to derive G2 pubkey");
+        let g1_pubkey =
+            offchain_g1_from_private_key(&private_key).expect("Failed to derive G1 pubkey");
+        let g2_pubkey =
+            offchain_g2_from_private_key(&private_key).expect("Failed to derive G2 pubkey");
 
         // ====================================================================
         // ON-CHAIN: Store G1 public key in operator snapshot
@@ -1373,26 +1532,20 @@ mod tests {
 
         // Message to sign (could be a vote counter value)
         let message = b"vote for round 42";
-        let domain = b"SOLANA_NCN_VOTE_V1";
 
         // Generate signature using private key
-        let signature = solana_sign(&private_key, message, Some(domain))
-            .expect("Failed to sign message");
+        let signature = solana_sign(&private_key, message, 0).expect("Failed to sign message");
 
         // For a single signer, prepare the data as if it were aggregated
         let signatures = vec![signature];
         let pubkeys_g2 = vec![g2_pubkey];
-        let signing_indices = vec![0];  // Operator at index 0 signed
+        let signing_indices = vec![0]; // Operator at index 0 signed
         let total_operators = 1;
 
         // Aggregate off-chain (for single signer, just returns the same values)
         let (aggregated_signature, aggregated_g2, bitmap) =
-            offchain_prepare_vote_data(
-                &signatures,
-                &pubkeys_g2,
-                &signing_indices,
-                total_operators
-            ).expect("Failed to prepare vote data");
+            offchain_prepare_vote_data(&signatures, &pubkeys_g2, &signing_indices, total_operators)
+                .expect("Failed to prepare vote data");
 
         // ====================================================================
         // ON-CHAIN: Compute aggregated G1 from stored values
@@ -1404,9 +1557,9 @@ mod tests {
         // 3. Subtract to get signers' aggregated G1
 
         // For this test with single signer:
-        let total_aggregated_g1 = g1_pubkey;  // Only one operator
-        let _non_signers_g1: Option<[u8; 32]> = None;  // No non-signers
-        let signers_aggregated_g1 = total_aggregated_g1;  // All operators signed
+        let total_aggregated_g1 = g1_pubkey; // Only one operator
+        let _non_signers_g1: Option<[u8; 32]> = None; // No non-signers
+        let signers_aggregated_g1 = total_aggregated_g1; // All operators signed
 
         // ====================================================================
         // ON-CHAIN: Verify the aggregated signature
@@ -1414,12 +1567,13 @@ mod tests {
 
         // This is what happens inside process_cast_vote
         let is_valid = solana_verify_aggregated_signature(
-            &signers_aggregated_g1,  // Computed on-chain from G1 pubkeys
-            &aggregated_g2,          // Pre-computed off-chain
-            &aggregated_signature,   // Aggregated G1 signature
-            message,                 // The message that was signed
-            Some(domain)            // Domain separator
-        ).expect("Verification failed");
+            &signers_aggregated_g1, // Computed on-chain from G1 pubkeys
+            &aggregated_g2,         // Pre-computed off-chain
+            &aggregated_signature,  // Aggregated G1 signature
+            message,                // The message that was signed
+            0,                      // Domain separator
+        )
+        .expect("Verification failed");
 
         assert!(is_valid, "Signature verification should succeed");
 
@@ -1433,11 +1587,15 @@ mod tests {
             &signers_aggregated_g1,
             &aggregated_g2,
             &aggregated_signature,
-            wrong_message,  // Different message
-            Some(domain)
-        ).expect("Verification failed");
+            wrong_message, // Different message
+            0,
+        )
+        .expect("Verification failed");
 
-        assert!(!is_valid_wrong_msg, "Wrong message should fail verification");
+        assert!(
+            !is_valid_wrong_msg,
+            "Wrong message should fail verification"
+        );
 
         // Test 2: Wrong domain should fail
         let is_valid_wrong_domain = solana_verify_aggregated_signature(
@@ -1445,10 +1603,14 @@ mod tests {
             &aggregated_g2,
             &aggregated_signature,
             message,
-            Some(b"WRONG_DOMAIN")  // Different domain
-        ).expect("Verification failed");
+            1, // Different domain
+        )
+        .expect("Verification failed");
 
-        assert!(!is_valid_wrong_domain, "Wrong domain should fail verification");
+        assert!(
+            !is_valid_wrong_domain,
+            "Wrong domain should fail verification"
+        );
 
         // Test 3: Mismatched G1/G2 keys should fail
         // Simulate a different operator's G1 key being used
@@ -1457,34 +1619,41 @@ mod tests {
             .expect("Failed to derive wrong G1 pubkey");
 
         let is_valid_wrong_key = solana_verify_aggregated_signature(
-            &wrong_g1_pubkey,  // Wrong G1 doesn't match G2
+            &wrong_g1_pubkey, // Wrong G1 doesn't match G2
             &aggregated_g2,
             &aggregated_signature,
             message,
-            Some(domain)
-        ).expect("Verification failed");
+            0,
+        )
+        .expect("Verification failed");
 
-        assert!(!is_valid_wrong_key, "Mismatched keys should fail verification");
+        assert!(
+            !is_valid_wrong_key,
+            "Mismatched keys should fail verification"
+        );
 
         // Test 4: Wrong signature should fail
-        let wrong_signature = solana_sign(&wrong_private_key, message, Some(domain))
-            .expect("Failed to sign with wrong key");
+        let wrong_signature =
+            solana_sign(&wrong_private_key, message, 0).expect("Failed to sign with wrong key");
 
         let is_valid_wrong_sig = solana_verify_aggregated_signature(
             &signers_aggregated_g1,
             &aggregated_g2,
-            &wrong_signature,  // Different signature
+            &wrong_signature, // Different signature
             message,
-            Some(domain)
-        ).expect("Verification failed");
+            0,
+        )
+        .expect("Verification failed");
 
-        assert!(!is_valid_wrong_sig, "Wrong signature should fail verification");
+        assert!(
+            !is_valid_wrong_sig,
+            "Wrong signature should fail verification"
+        );
 
         // ====================================================================
         // Verify bitmap was created correctly
         // ====================================================================
 
-        assert_eq!(bitmap.len(), 1, "Bitmap should be 1 byte for 1 operator");
         assert_eq!(bitmap[0], 0b00000001, "Bit 0 should be set for operator 0");
     }
 
@@ -1500,45 +1669,39 @@ mod tests {
         let private_key3 = generate_random_bls_private_key();
 
         // Derive G1 and G2 public keys for each operator
-        let g1_pubkey1 = offchain_g1_from_private_key(&private_key1)
-            .expect("Failed to derive G1 pubkey 1");
-        let g2_pubkey1 = offchain_g2_from_private_key(&private_key1)
-            .expect("Failed to derive G2 pubkey 1");
+        let g1_pubkey1 =
+            offchain_g1_from_private_key(&private_key1).expect("Failed to derive G1 pubkey 1");
+        let g2_pubkey1 =
+            offchain_g2_from_private_key(&private_key1).expect("Failed to derive G2 pubkey 1");
 
-        let g1_pubkey2 = offchain_g1_from_private_key(&private_key2)
-            .expect("Failed to derive G1 pubkey 2");
-        let g2_pubkey2 = offchain_g2_from_private_key(&private_key2)
-            .expect("Failed to derive G2 pubkey 2");
+        let g1_pubkey2 =
+            offchain_g1_from_private_key(&private_key2).expect("Failed to derive G1 pubkey 2");
+        let g2_pubkey2 =
+            offchain_g2_from_private_key(&private_key2).expect("Failed to derive G2 pubkey 2");
 
-        let g1_pubkey3 = offchain_g1_from_private_key(&private_key3)
-            .expect("Failed to derive G1 pubkey 3");
-        let g2_pubkey3 = offchain_g2_from_private_key(&private_key3)
-            .expect("Failed to derive G2 pubkey 3");
+        let g1_pubkey3 =
+            offchain_g1_from_private_key(&private_key3).expect("Failed to derive G1 pubkey 3");
+        let g2_pubkey3 =
+            offchain_g2_from_private_key(&private_key3).expect("Failed to derive G2 pubkey 3");
 
         // ====================================================================
         // ON-CHAIN: Store total aggregated G1 pubkey in snapshot
         // ====================================================================
 
         // Compute total aggregated G1 (would be stored in Snapshot)
-        let mut total_g1 = add_g1(&g1_pubkey1, &g1_pubkey2)
-            .expect("Failed to add G1 keys 1+2");
-        total_g1 = add_g1(&total_g1, &g1_pubkey3)
-            .expect("Failed to add G1 key 3");
+        let mut total_g1 = add_g1(&g1_pubkey1, &g1_pubkey2).expect("Failed to add G1 keys 1+2");
+        total_g1 = add_g1(&total_g1, &g1_pubkey3).expect("Failed to add G1 key 3");
 
         // ====================================================================
         // OFF-CHAIN: Three operators sign the same message
         // ====================================================================
 
         let message = b"vote for round 42";
-        let domain = b"SOLANA_NCN_VOTE_V1";
 
         // Each operator signs independently
-        let signature1 = solana_sign(&private_key1, message, Some(domain))
-            .expect("Failed to sign with key 1");
-        let signature2 = solana_sign(&private_key2, message, Some(domain))
-            .expect("Failed to sign with key 2");
-        let signature3 = solana_sign(&private_key3, message, Some(domain))
-            .expect("Failed to sign with key 3");
+        let signature1 = solana_sign(&private_key1, message, 0).expect("Failed to sign with key 1");
+        let signature2 = solana_sign(&private_key2, message, 0).expect("Failed to sign with key 2");
+        let signature3 = solana_sign(&private_key3, message, 0).expect("Failed to sign with key 3");
 
         // ====================================================================
         // TEST CASE 1: All 3 operators sign
@@ -1552,16 +1715,15 @@ mod tests {
             let signing_indices = vec![0, 1, 2];
             let total_operators = 3;
 
-            let (aggregated_signature, aggregated_g2, bitmap) =
-                offchain_prepare_vote_data(
-                    &signatures,
-                    &pubkeys_g2,
-                    &signing_indices,
-                    total_operators
-                ).expect("Failed to prepare vote data");
+            let (aggregated_signature, aggregated_g2, bitmap) = offchain_prepare_vote_data(
+                &signatures,
+                &pubkeys_g2,
+                &signing_indices,
+                total_operators,
+            )
+            .expect("Failed to prepare vote data");
 
             // Verify bitmap
-            assert_eq!(bitmap.len(), 1); // (3 + 7) / 8 = 1 byte
             assert_eq!(bitmap[0], 0b00000111); // Bits 0, 1, 2 set
 
             // ON-CHAIN: Since all signed, signers' G1 = total G1
@@ -1573,8 +1735,9 @@ mod tests {
                 &aggregated_g2,
                 &aggregated_signature,
                 message,
-                Some(domain)
-            ).expect("Verification failed");
+                0,
+            )
+            .expect("Verification failed");
 
             assert!(is_valid, "All 3 signatures should verify");
             println!("✓ All 3 signatures verified successfully");
@@ -1592,22 +1755,21 @@ mod tests {
             let signing_indices = vec![0, 2]; // Operators 0 and 2
             let total_operators = 3;
 
-            let (aggregated_signature, aggregated_g2, bitmap) =
-                offchain_prepare_vote_data(
-                    &signatures,
-                    &pubkeys_g2,
-                    &signing_indices,
-                    total_operators
-                ).expect("Failed to prepare vote data");
+            let (aggregated_signature, aggregated_g2, bitmap) = offchain_prepare_vote_data(
+                &signatures,
+                &pubkeys_g2,
+                &signing_indices,
+                total_operators,
+            )
+            .expect("Failed to prepare vote data");
 
             // Verify bitmap
-            assert_eq!(bitmap.len(), 1);
             assert_eq!(bitmap[0], 0b00000101); // Bits 0 and 2 set, bit 1 clear
 
             // ON-CHAIN: Compute signers' G1 by subtracting non-signer
             // signers_g1 = total_g1 - g1_pubkey2
-            let signers_g1 = sub_g1(&total_g1, &g1_pubkey2)
-                .expect("Failed to subtract non-signer G1");
+            let signers_g1 =
+                sub_g1(&total_g1, &g1_pubkey2).expect("Failed to subtract non-signer G1");
 
             // Verify signature
             let is_valid = solana_verify_aggregated_signature(
@@ -1615,8 +1777,9 @@ mod tests {
                 &aggregated_g2,
                 &aggregated_signature,
                 message,
-                Some(domain)
-            ).expect("Verification failed");
+                0,
+            )
+            .expect("Verification failed");
 
             assert!(is_valid, "Operators 0,2 signatures should verify");
             println!("✓ Operators 0,2 signatures verified successfully");
@@ -1634,27 +1797,29 @@ mod tests {
             let signing_indices = vec![1];
             let total_operators = 3;
 
-            let (aggregated_signature, aggregated_g2, bitmap) =
-                offchain_prepare_vote_data(
-                    &signatures,
-                    &pubkeys_g2,
-                    &signing_indices,
-                    total_operators
-                ).expect("Failed to prepare vote data");
+            let (aggregated_signature, aggregated_g2, bitmap) = offchain_prepare_vote_data(
+                &signatures,
+                &pubkeys_g2,
+                &signing_indices,
+                total_operators,
+            )
+            .expect("Failed to prepare vote data");
 
             // Verify bitmap
-            assert_eq!(bitmap.len(), 1);
             assert_eq!(bitmap[0], 0b00000010); // Only bit 1 set
 
             // ON-CHAIN: Compute signers' G1
             // signers_g1 = total_g1 - g1_pubkey1 - g1_pubkey3
-            let non_signers_g1 = add_g1(&g1_pubkey1, &g1_pubkey3)
-                .expect("Failed to add non-signer G1s");
-            let signers_g1 = sub_g1(&total_g1, &non_signers_g1)
-                .expect("Failed to subtract non-signers G1");
+            let non_signers_g1 =
+                add_g1(&g1_pubkey1, &g1_pubkey3).expect("Failed to add non-signer G1s");
+            let signers_g1 =
+                sub_g1(&total_g1, &non_signers_g1).expect("Failed to subtract non-signers G1");
 
             // Verify this equals g1_pubkey2
-            assert_eq!(signers_g1, g1_pubkey2, "Signers G1 should equal operator 1's G1");
+            assert_eq!(
+                signers_g1, g1_pubkey2,
+                "Signers G1 should equal operator 1's G1"
+            );
 
             // Verify signature
             let is_valid = solana_verify_aggregated_signature(
@@ -1662,8 +1827,9 @@ mod tests {
                 &aggregated_g2,
                 &aggregated_signature,
                 message,
-                Some(domain)
-            ).expect("Verification failed");
+                0,
+            )
+            .expect("Verification failed");
 
             assert!(is_valid, "Operator 1 signature should verify");
             println!("✓ Operator 1 signature verified successfully");
@@ -1681,13 +1847,13 @@ mod tests {
             let signing_indices = vec![0, 2];
             let total_operators = 3;
 
-            let (aggregated_signature, aggregated_g2, _bitmap) =
-                offchain_prepare_vote_data(
-                    &signatures,
-                    &pubkeys_g2,
-                    &signing_indices,
-                    total_operators
-                ).expect("Failed to prepare vote data");
+            let (aggregated_signature, aggregated_g2, _bitmap) = offchain_prepare_vote_data(
+                &signatures,
+                &pubkeys_g2,
+                &signing_indices,
+                total_operators,
+            )
+            .expect("Failed to prepare vote data");
 
             // Use wrong signers' G1 (pretend all 3 signed when only 2 did)
             let wrong_signers_g1 = total_g1;
@@ -1698,8 +1864,9 @@ mod tests {
                 &aggregated_g2,
                 &aggregated_signature,
                 message,
-                Some(domain)
-            ).expect("Verification call failed");
+                0,
+            )
+            .expect("Verification call failed");
 
             assert!(!is_valid, "Wrong signers' G1 should fail verification");
             println!("✓ Wrong signers' G1 correctly failed verification");
@@ -1714,10 +1881,13 @@ mod tests {
             let different_message = b"vote for round 43";
 
             // Sign different message
-            let diff_sig1 = solana_sign(&private_key1, different_message, Some(domain))
+            let diff_sig1 = solana_sign(&private_key1, different_message, 0)
                 .expect("Failed to sign different message");
 
-            assert_ne!(signature1, diff_sig1, "Different messages should produce different signatures");
+            assert_ne!(
+                signature1, diff_sig1,
+                "Different messages should produce different signatures"
+            );
             println!("✓ Different messages produce different signatures");
         }
 
@@ -1732,9 +1902,9 @@ mod tests {
 
         // Generate 3 different private keys
         let private_keys = [
-            [0x01; 32],  // Operator 0
-            [0x02; 32],  // Operator 1
-            [0x03; 32],  // Operator 2
+            [0x01; 32], // Operator 0
+            [0x02; 32], // Operator 1
+            [0x03; 32], // Operator 2
         ];
 
         // Derive G1 and G2 public keys for each operator
@@ -1743,9 +1913,9 @@ mod tests {
 
         for i in 0..3 {
             g1_pubkeys[i] = offchain_g1_from_private_key(&private_keys[i])
-                .expect(&format!("Failed to derive G1 pubkey {}", i));
+                .unwrap_or_else(|e| panic!("Failed to derive G1 pubkey {} {}", i, e));
             g2_pubkeys[i] = offchain_g2_from_private_key(&private_keys[i])
-                .expect(&format!("Failed to derive G2 pubkey {}", i));
+                .unwrap_or_else(|e| panic!("Failed to derive G2 pubkey {} {}", i, e));
         }
 
         // ====================================================================
@@ -1754,48 +1924,52 @@ mod tests {
 
         // In the real program, this would be computed during snapshot creation
         let mut total_aggregated_g1 = g1_pubkeys[0];
-        for i in 1..3 {
-            total_aggregated_g1 = add_g1(&total_aggregated_g1, &g1_pubkeys[i])
-                .expect(&format!("Failed to add G1 pubkey {}", i));
+        for (i, item) in g1_pubkeys.iter().enumerate().skip(1) {
+            total_aggregated_g1 = add_g1(&total_aggregated_g1, item)
+                .unwrap_or_else(|e| panic!("Failed to add G1 pubkey {} {}", i, e));
         }
 
-        println!("Total aggregated G1 (all 3 operators): {}", hex::encode(&total_aggregated_g1));
+        println!(
+            "Total aggregated G1 (all 3 operators): {}",
+            hex::encode(total_aggregated_g1)
+        );
 
         // ====================================================================
         // OFF-CHAIN: Operators 0 and 2 sign (operator 1 is the non-signer)
         // ====================================================================
 
         let message = b"vote for round 42";
-        let domain = b"SOLANA_NCN_VOTE_V1";
 
         // Only operators 0 and 2 sign
-        let signature0 = solana_sign(&private_keys[0], message, Some(domain))
-            .expect("Failed to sign with key 0");
-        let signature2 = solana_sign(&private_keys[2], message, Some(domain))
-            .expect("Failed to sign with key 2");
+        let signature0 =
+            solana_sign(&private_keys[0], message, 0).expect("Failed to sign with key 0");
+        let signature2 =
+            solana_sign(&private_keys[2], message, 0).expect("Failed to sign with key 2");
 
         // Prepare vote data for the 2 signers
         let signatures = vec![signature0, signature2];
         let signer_g2_pubkeys = vec![g2_pubkeys[0], g2_pubkeys[2]];
-        let signing_indices = vec![0, 2];  // Operators 0 and 2 signed
+        let signing_indices = vec![0, 2]; // Operators 0 and 2 signed
         let total_operators = 3;
 
         // Aggregate off-chain
-        let (aggregated_signature, aggregated_g2, bitmap) =
-            offchain_prepare_vote_data(
-                &signatures,
-                &signer_g2_pubkeys,
-                &signing_indices,
-                total_operators
-            ).expect("Failed to prepare vote data");
+        let (aggregated_signature, aggregated_g2, bitmap) = offchain_prepare_vote_data(
+            &signatures,
+            &signer_g2_pubkeys,
+            &signing_indices,
+            total_operators,
+        )
+        .expect("Failed to prepare vote data");
 
         println!("\nOff-chain aggregation complete:");
-        println!("  Aggregated signature: {}", hex::encode(&aggregated_signature));
-        println!("  Aggregated G2: {}", hex::encode(&aggregated_g2));
+        println!(
+            "  Aggregated signature: {}",
+            hex::encode(aggregated_signature)
+        );
+        println!("  Aggregated G2: {}", hex::encode(aggregated_g2));
         println!("  Bitmap: 0b{:08b} (operators 0 and 2 set)", bitmap[0]);
 
         // Verify bitmap is correct
-        assert_eq!(bitmap.len(), 1, "Should have 1 byte for 3 operators");
         assert_eq!(bitmap[0], 0b00000101, "Bits 0 and 2 should be set");
 
         // ====================================================================
@@ -1807,19 +1981,27 @@ mod tests {
         // 2. Compute non-signers' aggregated G1 (just operator 1's G1)
         // 3. Subtract from total: signers_g1 = total_g1 - non_signers_g1
 
-        let non_signers_g1 = g1_pubkeys[1];  // Only operator 1 didn't sign
+        let non_signers_g1 = g1_pubkeys[1]; // Only operator 1 didn't sign
         let signers_aggregated_g1 = sub_g1(&total_aggregated_g1, &non_signers_g1)
             .expect("Failed to subtract non-signer G1");
 
         println!("\nOn-chain computation:");
-        println!("  Non-signer G1 (operator 1): {}", hex::encode(&non_signers_g1));
-        println!("  Signers' aggregated G1: {}", hex::encode(&signers_aggregated_g1));
+        println!(
+            "  Non-signer G1 (operator 1): {}",
+            hex::encode(non_signers_g1)
+        );
+        println!(
+            "  Signers' aggregated G1: {}",
+            hex::encode(signers_aggregated_g1)
+        );
 
         // Verify that signers_aggregated_g1 = g1_pubkeys[0] + g1_pubkeys[2]
-        let expected_signers_g1 = add_g1(&g1_pubkeys[0], &g1_pubkeys[2])
-            .expect("Failed to add expected signer G1s");
-        assert_eq!(signers_aggregated_g1, expected_signers_g1,
-            "Signers' G1 should equal sum of operators 0 and 2");
+        let expected_signers_g1 =
+            add_g1(&g1_pubkeys[0], &g1_pubkeys[2]).expect("Failed to add expected signer G1s");
+        assert_eq!(
+            signers_aggregated_g1, expected_signers_g1,
+            "Signers' G1 should equal sum of operators 0 and 2"
+        );
 
         // ====================================================================
         // ON-CHAIN: Verify the aggregated signature
@@ -1828,12 +2010,13 @@ mod tests {
         println!("\nVerifying signature...");
 
         let is_valid = solana_verify_aggregated_signature(
-            &signers_aggregated_g1,  // Computed on-chain from bitmap
-            &aggregated_g2,          // Pre-computed off-chain from signers
-            &aggregated_signature,   // Aggregated G1 signature from signers
-            message,                 // The message that was signed
-            Some(domain)            // Domain separator
-        ).expect("Verification failed");
+            &signers_aggregated_g1, // Computed on-chain from bitmap
+            &aggregated_g2,         // Pre-computed off-chain from signers
+            &aggregated_signature,  // Aggregated G1 signature from signers
+            message,                // The message that was signed
+            0,                      // Domain separator
+        )
+        .expect("Verification failed");
 
         assert!(is_valid, "2-of-3 signature should verify successfully");
         println!("✅ 2-of-3 signature verified successfully!");
@@ -1846,24 +2029,26 @@ mod tests {
 
         // Test 1: Using total G1 (pretending all 3 signed) should fail
         let should_fail = solana_verify_aggregated_signature(
-            &total_aggregated_g1,    // Wrong! This includes non-signer
+            &total_aggregated_g1, // Wrong! This includes non-signer
             &aggregated_g2,
             &aggregated_signature,
             message,
-            Some(domain)
-        ).expect("Verification call failed");
+            0,
+        )
+        .expect("Verification call failed");
 
         assert!(!should_fail, "Should fail when using wrong signers' G1");
         println!("✓ Correctly rejected wrong signers' G1");
 
         // Test 2: Using only one signer's G1 should fail
         let should_fail2 = solana_verify_aggregated_signature(
-            &g1_pubkeys[0],          // Wrong! Only one of the two signers
+            &g1_pubkeys[0], // Wrong! Only one of the two signers
             &aggregated_g2,
             &aggregated_signature,
             message,
-            Some(domain)
-        ).expect("Verification call failed");
+            0,
+        )
+        .expect("Verification call failed");
 
         assert!(!should_fail2, "Should fail when using partial signers' G1");
         println!("✓ Correctly rejected partial signers' G1");
@@ -1886,7 +2071,10 @@ mod tests {
         let g1_2 = offchain_g1_from_private_key(&private_key2).unwrap();
 
         let result = verify_g1_g2(&g1_2, &g2).unwrap();
-        assert!(!result, "Keys from different private keys should not verify");
+        assert!(
+            !result,
+            "Keys from different private keys should not verify"
+        );
 
         // Test 3: Zero G1 point
         let zero_g1 = [0u8; 64];
@@ -1935,50 +2123,53 @@ mod tests {
         let private_key = generate_random_bls_private_key();
         let g2_pubkey = offchain_g2_from_private_key(&private_key).unwrap();
         let message = b"test message";
-        let domain = b"TEST_DOMAIN";
 
-        let signature = solana_sign(&private_key, message, Some(domain)).unwrap();
+        let signature = solana_sign(&private_key, message, 0).unwrap();
 
-        let valid = solana_verify_signature_with_g2(&g2_pubkey, &signature, message, Some(domain)).unwrap();
+        let valid = solana_verify_signature_with_g2(&g2_pubkey, &signature, message, 0).unwrap();
         assert!(valid, "Valid signature should verify");
 
         // Test 2: Wrong message should fail
         let wrong_message = b"this is a wrong message";
-        let valid = solana_verify_signature_with_g2(&g2_pubkey, &signature, wrong_message, Some(domain)).unwrap();
+        let valid =
+            solana_verify_signature_with_g2(&g2_pubkey, &signature, wrong_message, 0).unwrap();
         assert!(!valid, "Wrong message should fail verification");
 
         // Test 3: Wrong domain should fail
-        let wrong_domain = b"WRONG_DOMAIN";
-        let valid = solana_verify_signature_with_g2(&g2_pubkey, &signature, message, Some(wrong_domain)).unwrap();
+        let valid = solana_verify_signature_with_g2(&g2_pubkey, &signature, message, 1).unwrap();
         assert!(!valid, "Wrong domain should fail verification");
 
         // Test 4: Wrong G2 key should fail
         let wrong_private_key = generate_random_bls_private_key();
         let wrong_g2_pubkey = offchain_g2_from_private_key(&wrong_private_key).unwrap();
-        let valid = solana_verify_signature_with_g2(&wrong_g2_pubkey, &signature, message, Some(domain)).unwrap();
+        let valid =
+            solana_verify_signature_with_g2(&wrong_g2_pubkey, &signature, message, 0).unwrap();
         assert!(!valid, "Wrong G2 key should fail verification");
 
         // Test 5: Wrong signature should fail
-        let wrong_signature = solana_sign(&wrong_private_key, message, Some(domain)).unwrap();
-        let valid = solana_verify_signature_with_g2(&g2_pubkey, &wrong_signature, message, Some(domain)).unwrap();
+        let wrong_signature = solana_sign(&wrong_private_key, message, 0).unwrap();
+        let valid =
+            solana_verify_signature_with_g2(&g2_pubkey, &wrong_signature, message, 0).unwrap();
         assert!(!valid, "Wrong signature should fail verification");
 
         // Test 6: No domain
-        let signature_no_domain = solana_sign(&private_key, message, None).unwrap();
-        let valid = solana_verify_signature_with_g2(&g2_pubkey, &signature_no_domain, message, None).unwrap();
+        let signature_no_domain = solana_sign(&private_key, message, 2).unwrap();
+        let valid =
+            solana_verify_signature_with_g2(&g2_pubkey, &signature_no_domain, message, 2).unwrap();
         assert!(valid, "Signature without domain should verify");
 
         // Test 7: Multiple signers (aggregated)
         let private_key2 = generate_random_bls_private_key();
         let g2_pubkey2 = offchain_g2_from_private_key(&private_key2).unwrap();
 
-        let sig1 = solana_sign(&private_key, message, Some(domain)).unwrap();
-        let sig2 = solana_sign(&private_key2, message, Some(domain)).unwrap();
+        let sig1 = solana_sign(&private_key, message, 0).unwrap();
+        let sig2 = solana_sign(&private_key2, message, 0).unwrap();
 
         let aggregated_sig = aggregate_signatures(&[sig1, sig2]).unwrap();
         let aggregated_g2 = offchain_aggregate_g2_pubkeys(&[g2_pubkey, g2_pubkey2]).unwrap();
 
-        let valid = solana_verify_signature_with_g2(&aggregated_g2, &aggregated_sig, message, Some(domain)).unwrap();
+        let valid =
+            solana_verify_signature_with_g2(&aggregated_g2, &aggregated_sig, message, 0).unwrap();
         assert!(valid, "Aggregated signature should verify");
     }
 
@@ -1988,16 +2179,17 @@ mod tests {
         let private_key = generate_random_bls_private_key();
         let g2_pubkey = offchain_g2_from_private_key(&private_key).unwrap();
         let empty_message = b"";
-        let domain = b"TEST";
 
-        let signature = solana_sign(&private_key, empty_message, Some(domain)).unwrap();
-        let valid = solana_verify_signature_with_g2(&g2_pubkey, &signature, empty_message, Some(domain)).unwrap();
+        let signature = solana_sign(&private_key, empty_message, 0).unwrap();
+        let valid =
+            solana_verify_signature_with_g2(&g2_pubkey, &signature, empty_message, 0).unwrap();
         assert!(valid, "Empty message should verify");
 
         // Test with large message
         let large_message = vec![0xAB; 1000];
-        let signature = solana_sign(&private_key, &large_message, Some(domain)).unwrap();
-        let valid = solana_verify_signature_with_g2(&g2_pubkey, &signature, &large_message, Some(domain)).unwrap();
+        let signature = solana_sign(&private_key, &large_message, 0).unwrap();
+        let valid =
+            solana_verify_signature_with_g2(&g2_pubkey, &signature, &large_message, 0).unwrap();
         assert!(valid, "Large message should verify");
     }
 
@@ -2008,16 +2200,20 @@ mod tests {
         let g1_pubkey = offchain_g1_from_private_key(&private_key).unwrap();
         let g2_pubkey = offchain_g2_from_private_key(&private_key).unwrap();
         let message = b"consistency test";
-        let domain = b"DOMAIN";
 
-        let signature = solana_sign(&private_key, message, Some(domain)).unwrap();
+        let signature = solana_sign(&private_key, message, 0).unwrap();
 
         // Verify with G2 only
-        let valid_g2_only = solana_verify_signature_with_g2(&g2_pubkey, &signature, message, Some(domain)).unwrap();
+        let valid_g2_only =
+            solana_verify_signature_with_g2(&g2_pubkey, &signature, message, 0).unwrap();
 
         // Verify with full method
-        let valid_full = solana_verify_single_signature(&g1_pubkey, &g2_pubkey, &signature, message, Some(domain)).unwrap();
+        let valid_full =
+            solana_verify_single_signature(&g1_pubkey, &g2_pubkey, &signature, message, 0).unwrap();
 
-        assert_eq!(valid_g2_only, valid_full, "Both verification methods should give same result");
+        assert_eq!(
+            valid_g2_only, valid_full,
+            "Both verification methods should give same result"
+        );
     }
 }

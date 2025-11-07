@@ -1,47 +1,72 @@
-use ark_bn254::{Fq, Fq2, Fr as Scalar, G1Affine, G1Projective, G2Affine, G2Projective};
-use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup, PrimeGroup};
-use ark_ff::AdditiveGroup;
+use ark_bn254::{Fr as Scalar, G1Affine, G2Affine};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use commonware_cryptography::{
-    Hasher as _, PublicKey as CommonwarePublicKey, Sha256, Signature as CommonwareSignature, Signer, Verifier,
+    PublicKey as CommonwarePublicKey, Signature as CommonwareSignature, Signer, Verifier,
 };
 
-use commonware_codec::{Error, FixedSize, Read, Write};
-use commonware_utils::{array::Array, hex, union_unique};
 use bytes::buf::BufMut;
 use bytes::Buf;
+use commonware_codec::{Error, FixedSize, Read, Write};
+use commonware_utils::{array::Array, hex};
 use std::{
-    fmt::{self, Debug, Display},
+    fmt::{Debug, Display},
     hash::{Hash, Hasher},
     ops::Deref,
 };
 
-use crate::bls::{solana_bls::{solana_hash_to_curve, solana_sign, solana_verify_signature_with_g2, solana_verify_single_signature}, solana_bls_interface::{SolanaBN254G1, SolanaBN254G2, SolanaBN254Keypair, SolanaBN254PublicKey, SolanaBN254Signature}};
+use crate::bls::{
+    solana_bls::{solana_sign, solana_verify_signature_with_g2, solana_verify_single_signature},
+    solana_bls_interface::{
+        SolanaBN254G1, SolanaBN254G2, SolanaBN254Keypair, SolanaBN254Signature,
+    },
+};
 
 // const DIGEST_LENGTH: usize = 32;
-// const PRIVATE_KEY_LENGTH: usize = 32;
-// const G1_LENGTH: usize = 32;
-// const SIGNATURE_LENGTH: usize = G1_LENGTH;
-// const G2_LENGTH: usize = 64;
-// const PUBLIC_KEY_LENGTH: usize = G2_LENGTH;
-
-const DIGEST_LENGTH: usize = 32;
 const PRIVATE_KEY_LENGTH: usize = 32;
 const G1_LENGTH: usize = 64;
 const SIGNATURE_LENGTH: usize = G1_LENGTH;
 const G2_LENGTH: usize = 128;
 const PUBLIC_KEY_LENGTH: usize = G2_LENGTH;
 
+impl SolanaBN254Keypair {
+    pub fn solana_sign(&self, message: &[u8], consensus_count: u64) -> SolanaBN254Signature {
+        let consensus_bytes = consensus_count.to_le_bytes();
+        let namespace = Some(consensus_bytes.as_slice());
+        self.sign(namespace, message)
+    }
+
+    pub fn solana_verify(
+        &self,
+        message: &[u8],
+        signature: &SolanaBN254Signature,
+        consensus_count: u64,
+    ) -> bool {
+        let consensus_bytes = consensus_count.to_le_bytes();
+        let namespace = Some(consensus_bytes.as_slice());
+        self.verify(namespace, message, signature)
+    }
+}
+
 impl Signer for SolanaBN254Keypair {
     type Signature = SolanaBN254Signature;
     type PublicKey = SolanaBN254G2;
 
+    /// Namespace actually needs to be the consensus count in Option<Byte>format
     fn sign(&self, namespace: Option<&[u8]>, message: &[u8]) -> Self::Signature {
+        if namespace.is_none() {
+            panic!("Consensus count is required ( Namespace, with consensus count (u64) as be bytes) - use SolanaBN254Keypair::solana_sign");
+        }
 
-        let raw_signature = solana_sign(&self.private_key, message, namespace).expect("Could not sign");
-        let signature = SolanaBN254Signature::new(&raw_signature).expect("Could not create signature");
+        let consensus_bytes = namespace.expect("Could not unwrap consensus bytes");
+        let consensus_count = u64::from_le_bytes(
+            consensus_bytes[..8]
+                .try_into()
+                .expect("slice with incorrect length"),
+        );
 
-        signature
+        let raw_signature =
+            solana_sign(&self.private_key, message, consensus_count).expect("Could not sign");
+        SolanaBN254Signature::new(&raw_signature).expect("Could not create signature")
     }
 
     fn public_key(&self) -> Self::PublicKey {
@@ -52,10 +77,28 @@ impl Signer for SolanaBN254Keypair {
 impl Verifier for SolanaBN254Keypair {
     type Signature = SolanaBN254Signature;
 
-    fn verify(&self, namespace: Option<&[u8]>, message: &[u8], signature: &Self::Signature) -> bool {
+    fn verify(
+        &self,
+        namespace: Option<&[u8]>,
+        message: &[u8],
+        signature: &Self::Signature,
+    ) -> bool {
         let g1 = &self.public_key.g1.raw;
         let g2 = &self.public_key.g2.raw;
-        solana_verify_single_signature(g1, g2, &signature.raw, message, namespace).expect("Could not verify signature")
+
+        if namespace.is_none() {
+            panic!("Consensus count is required ( Namespace, with consensus count (u64) as be bytes) - use SolanaBN254Keypair::solana_verify");
+        }
+
+        let consensus_bytes = namespace.expect("Could not unwrap consensus bytes");
+        let consensus_count = u64::from_le_bytes(
+            consensus_bytes[..8]
+                .try_into()
+                .expect("slice with incorrect length"),
+        );
+
+        solana_verify_single_signature(g1, g2, &signature.raw, message, consensus_count)
+            .expect("Could not verify signature")
     }
 }
 
@@ -126,8 +169,7 @@ impl From<Scalar> for SolanaBN254Keypair {
     fn from(key: Scalar) -> Self {
         let mut raw = [0u8; PRIVATE_KEY_LENGTH];
         key.serialize_compressed(&mut raw[..]).unwrap();
-        let keypair = SolanaBN254Keypair::new(&raw).expect("Could not cast into private key");
-        keypair
+        SolanaBN254Keypair::new(&raw).expect("Could not cast into private key")
     }
 }
 
@@ -167,6 +209,19 @@ impl Display for SolanaBN254Keypair {
     }
 }
 
+impl SolanaBN254G2 {
+    pub fn solana_verify_g2(
+        &self,
+        message: &[u8],
+        signature: &SolanaBN254Signature,
+        consensus_count: u64,
+    ) -> bool {
+        let consensus_bytes = consensus_count.to_le_bytes();
+        let namespace = Some(consensus_bytes.as_slice());
+        self.verify(namespace, message, signature)
+    }
+}
+
 impl Array for SolanaBN254G2 {}
 
 impl FixedSize for SolanaBN254G2 {
@@ -183,9 +238,7 @@ impl Read for SolanaBN254G2 {
     type Cfg = ();
 
     fn read_cfg(buf: &mut impl Buf, _cfg: &()) -> Result<Self, Error> {
-        let mut raw = <[u8; PUBLIC_KEY_LENGTH]>::read_cfg(buf, &())?;
-        let dst: &[u8] = &mut raw;
-        let _ = G2Affine::deserialize_compressed(dst).expect("Wrong Public Key");
+        let raw = <[u8; PUBLIC_KEY_LENGTH]>::read_cfg(buf, &())?;
         let g2 = SolanaBN254G2::new(&raw).expect("Could not create G2");
         Ok(g2)
     }
@@ -230,12 +283,12 @@ impl Deref for SolanaBN254G2 {
     }
 }
 
+//TODO test
 impl From<G2Affine> for SolanaBN254G2 {
     fn from(key: G2Affine) -> Self {
         let mut raw = [0u8; PUBLIC_KEY_LENGTH];
         key.serialize_compressed(&mut raw[..]).unwrap();
-        let g2 = SolanaBN254G2::new(&raw).expect("Could not create G2");
-        g2
+        SolanaBN254G2::new(&raw).expect("Could not create G2")
     }
 }
 
@@ -244,10 +297,6 @@ impl TryFrom<&[u8]> for SolanaBN254G2 {
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         let raw: [u8; PUBLIC_KEY_LENGTH] =
             TryInto::<[u8; PUBLIC_KEY_LENGTH]>::try_into(value).expect("Invalid Public Key Length");
-        let key = G2Affine::deserialize_compressed(value).expect("Invalid Public Key");
-        if !key.is_in_correct_subgroup_assuming_on_curve() || !key.is_on_curve() || key.is_zero() {
-            return Err(Error::InvalidUsize);
-        }
         let g2 = SolanaBN254G2::new(&raw).expect("Could not create G2");
         Ok(g2)
     }
@@ -282,13 +331,25 @@ impl Display for SolanaBN254G2 {
 impl Verifier for SolanaBN254G2 {
     type Signature = SolanaBN254Signature;
 
-    fn verify(&self, namespace: Option<&[u8]>, message: &[u8], signature: &Self::Signature) -> bool {
-        solana_verify_signature_with_g2(
-            &self.raw,
-            &signature.raw,
-            message,
-            namespace
-        ).expect("Could not verify")
+    fn verify(
+        &self,
+        namespace: Option<&[u8]>,
+        message: &[u8],
+        signature: &Self::Signature,
+    ) -> bool {
+        if namespace.is_none() {
+            panic!("Consensus count is required ( Namespace, with consensus count (u64) as be bytes) - use SolanaBN254G2::solana_verify_g2");
+        }
+
+        let consensus_bytes = namespace.expect("Could not unwrap consensus bytes");
+        let consensus_count = u64::from_le_bytes(
+            consensus_bytes[..8]
+                .try_into()
+                .expect("slice with incorrect length"),
+        );
+
+        solana_verify_signature_with_g2(&self.raw, &signature.raw, message, consensus_count)
+            .expect("Could not verify")
     }
 }
 
@@ -312,9 +373,7 @@ impl Read for SolanaBN254Signature {
     type Cfg = ();
 
     fn read_cfg(buf: &mut impl Buf, _cfg: &()) -> Result<Self, Error> {
-        let mut raw = <[u8; SIGNATURE_LENGTH]>::read_cfg(buf, &())?;
-        let dst: &[u8] = &mut raw;
-        let _ = G1Affine::deserialize_compressed(dst).expect("Wrong Signature");
+        let raw = <[u8; SIGNATURE_LENGTH]>::read_cfg(buf, &())?;
         let g1 = SolanaBN254G1::new(&raw).expect("Could not create G1");
         Ok(g1)
     }
@@ -331,18 +390,15 @@ impl PartialEq for SolanaBN254Signature {
         self.raw == other.raw
     }
 }
-
 impl Eq for SolanaBN254Signature {}
-
 impl Ord for SolanaBN254Signature {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.raw.cmp(&other.raw)
     }
 }
-
 impl PartialOrd for SolanaBN254Signature {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.raw.partial_cmp(&other.raw)
+        Some(self.cmp(other))
     }
 }
 
@@ -359,12 +415,12 @@ impl Deref for SolanaBN254Signature {
     }
 }
 
+// TODO test
 impl From<G1Affine> for SolanaBN254Signature {
     fn from(sig: G1Affine) -> Self {
         let mut raw = [0u8; SIGNATURE_LENGTH];
         sig.serialize_compressed(&mut raw[..]).unwrap();
-        let g1 = SolanaBN254G1::new(&raw).expect("Could not create G1");
-        g1
+        SolanaBN254G1::new(&raw).expect("Could not create G1")
     }
 }
 
@@ -373,10 +429,6 @@ impl TryFrom<&[u8]> for SolanaBN254Signature {
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         let raw: [u8; SIGNATURE_LENGTH] =
             TryInto::<[u8; SIGNATURE_LENGTH]>::try_into(value).expect("Invalid Signature Length");
-        let sig = G1Affine::deserialize_compressed(value).expect("Invalid Signature");
-        if !sig.is_in_correct_subgroup_assuming_on_curve() || !sig.is_on_curve() || sig.is_zero() {
-            return Err(Error::InvalidBool);
-        }
         let g1 = SolanaBN254G1::new(&raw).expect("Could not create G1");
         Ok(g1)
     }
@@ -407,5 +459,3 @@ impl Display for SolanaBN254Signature {
         write!(f, "{}", hex(&self.raw))
     }
 }
-
-// TODO Tests
